@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deadlines</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">◈</span>
+          <span class="logo-text">Deadlines</span>
+        </div>
+        <button class="btn-add" id="openModalBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Новый дедлайн
+        </button>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="summary-bar" id="summaryBar"></div>
+      <div class="deadlines-grid" id="deadlinesGrid">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Загрузка…</p>
+        </div>
+      </div>
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">◎</div>
+        <h2>Нет дедлайнов</h2>
+        <p>Добавь первый дедлайн, чтобы начать отслеживать время</p>
+        <button class="btn-add" id="emptyAddBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Добавить дедлайн
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL: CREATE / EDIT -->
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Новый дедлайн</h2>
+        <button class="modal-close" id="closeModalBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="deadlineForm" autocomplete="off">
+        <input type="hidden" id="editId" />
+        <div class="form-group">
+          <label class="form-label" for="titleInput">Название</label>
+          <input class="form-input" id="titleInput" type="text" placeholder="Сдать проект, Встреча с командой…" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="descInput">Описание <span class="optional">необязательно</span></label>
+          <textarea class="form-input form-textarea" id="descInput" placeholder="Детали, ссылки, заметки…" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="datetimeInput">Дата и время</label>
+          <input class="form-input" id="datetimeInput" type="datetime-local" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Цвет</label>
+          <div class="color-picker" id="colorPicker">
+            <button type="button" class="color-swatch active" data-color="#6366f1" style="background:#6366f1;"></button>
+            <button type="button" class="color-swatch" data-color="#ec4899" style="background:#ec4899;"></button>
+            <button type="button" class="color-swatch" data-color="#f59e0b" style="background:#f59e0b;"></button>
+            <button type="button" class="color-swatch" data-color="#10b981" style="background:#10b981;"></button>
+            <button type="button" class="color-swatch" data-color="#3b82f6" style="background:#3b82f6;"></button>
+            <button type="button" class="color-swatch" data-color="#ef4444" style="background:#ef4444;"></button>
+            <button type="button" class="color-swatch" data-color="#8b5cf6" style="background:#8b5cf6;"></button>
+            <button type="button" class="color-swatch" data-color="#14b8a6" style="background:#14b8a6;"></button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Напоминания</label>
+          <div class="reminder-chips" id="reminderChips">
+            <button type="button" class="chip" data-type="before_minutes" data-offset="30">За 30 мин</button>
+            <button type="button" class="chip" data-type="before_minutes" data-offset="60">За 1 час</button>
+            <button type="button" class="chip" data-type="before_minutes" data-offset="120">За 2 часа</button>
+            <button type="button" class="chip" data-type="before_minutes" data-offset="1440">За 1 день</button>
+            <button type="button" class="chip" data-type="daily_at" data-time="09:00">Каждый день 9:00</button>
+            <button type="button" class="chip" data-type="daily_at" data-time="21:00">Каждый день 21:00</button>
+          </div>
+          <div class="custom-daily hidden" id="customDailyRow">
+            <input class="form-input custom-time-input" id="customTime" type="time" placeholder="08:00" />
+            <button type="button" class="btn-ghost" id="addCustomDaily">+ Добавить</button>
+          </div>
+          <button type="button" class="btn-ghost btn-custom-reminder" id="toggleCustomDaily">⏰ Своё время для ежедневного напоминания</button>
+          <div class="selected-reminders" id="selectedReminders"></div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-ghost" id="cancelFormBtn">Отмена</button>
+          <button type="submit" class="btn-primary" id="submitBtn">Создать</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: DETAIL / DELETE CONFIRM -->
+  <div class="modal-overlay hidden" id="detailOverlay">
+    <div class="modal modal-detail" id="detailModal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="detailTitle"></h2>
+        <button class="modal-close" id="closeDetailBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="detailBody"></div>
+      <div class="form-actions">
+        <button class="btn-danger" id="deleteBtn">Удалить</button>
+        <button class="btn-primary" id="editBtn">Редактировать</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
