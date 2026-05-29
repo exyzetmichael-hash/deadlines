@@ -21,7 +21,7 @@ from models import ReminderType
 
 logger = logging.getLogger(__name__)
 
-TITLE, DATETIME_INPUT, REMINDER_MENU, CUSTOM_INTERVAL_INPUT, CUSTOM_DAILY_INPUT = range(5)
+TITLE, DATETIME_INPUT, REMINDER_MENU, CUSTOM_INTERVAL_INPUT = range(4)
 
 # Пресеты «за N времени до события» (минуты)
 BEFORE_PRESETS = [
@@ -30,8 +30,6 @@ BEFORE_PRESETS = [
     (120, "За 2 часа"),
     (1440, "За 1 день"),
 ]
-# Пресеты ежедневных напоминаний
-DAILY_PRESETS = ["09:00", "21:00"]
 
 _db_factory = None
 _allowed_id = None
@@ -122,9 +120,10 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "ℹ️ <b>Справка</b>\n\n"
         "<b>/add</b> — мастер создания: название → дата → напоминания.\n"
-        "Напоминания можно отмечать несколько сразу, есть кастомные:\n"
-        "• «свой интервал» — например <code>за 3 часа 30 минут</code> или <code>90</code> (минут)\n"
-        "• «своё ежедневное время» — например <code>08:30</code>\n\n"
+        "Напоминания «за N времени до события», можно несколько сразу.\n"
+        "Кнопка «⚙️ Свой интервал» — например <code>за 3 часа 30 минут</code> или <code>90</code> (минут).\n\n"
+        "☀️ <b>Сводка</b> приходит автоматически каждое утро — одним сообщением "
+        "со всеми активными дедлайнами.\n\n"
         "<b>/list</b> — все дедлайны с обратным отсчётом.\n"
         "<b>/today</b> — что горит в ближайшие 48 часов.\n"
         "<b>/delete 3</b> — удалить дедлайн с id 3.\n"
@@ -278,13 +277,7 @@ def _reminder_keyboard(selected: list) -> InlineKeyboardMarkup:
     for minutes, label in BEFORE_PRESETS:
         mark = "✅ " if is_sel(ReminderType.before_minutes, offset=minutes) else ""
         rows.append([InlineKeyboardButton(f"{mark}{label}", callback_data=f"t:before:{minutes}")])
-    for t in DAILY_PRESETS:
-        mark = "✅ " if is_sel(ReminderType.daily_at, time=t) else ""
-        rows.append([InlineKeyboardButton(f"{mark}Каждый день в {t}", callback_data=f"t:daily:{t}")])
-    rows.append([
-        InlineKeyboardButton("⚙️ Свой интервал", callback_data="custom_interval"),
-        InlineKeyboardButton("⏰ Своё время", callback_data="custom_daily"),
-    ])
+    rows.append([InlineKeyboardButton("⚙️ Свой интервал", callback_data="custom_interval")])
     rows.append([InlineKeyboardButton("✔️ Готово", callback_data="done")])
     return InlineKeyboardMarkup(rows)
 
@@ -315,20 +308,10 @@ async def reminder_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CUSTOM_INTERVAL_INPUT
 
-    if data == "custom_daily":
-        await query.edit_message_text(
-            "⏰ Введи время для ежедневного напоминания, например <code>08:30</code>:",
-            parse_mode="HTML",
-        )
-        return CUSTOM_DAILY_INPUT
-
     # Переключение пресета
     if data.startswith("t:before:"):
         minutes = int(data.split(":")[2])
         _toggle(selected, {"type": ReminderType.before_minutes, "offset_minutes": minutes, "daily_time": None})
-    elif data.startswith("t:daily:"):
-        t = data.split(":", 2)[2]
-        _toggle(selected, {"type": ReminderType.daily_at, "offset_minutes": None, "daily_time": t})
 
     await query.edit_message_text(
         _menu_text(context), parse_mode="HTML", reply_markup=_reminder_keyboard(selected)
@@ -359,24 +342,6 @@ async def add_custom_interval(update: Update, context: ContextTypes.DEFAULT_TYPE
         return CUSTOM_INTERVAL_INPUT
     selected = context.user_data.setdefault("reminders", [])
     _toggle(selected, {"type": ReminderType.before_minutes, "offset_minutes": minutes, "daily_time": None})
-    await update.message.reply_text(
-        _menu_text(context), parse_mode="HTML", reply_markup=_reminder_keyboard(selected)
-    )
-    return REMINDER_MENU
-
-
-async def add_custom_daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    try:
-        h, m = map(int, text.split(":"))
-        if not (0 <= h <= 23 and 0 <= m <= 59):
-            raise ValueError
-        time_str = f"{h:02d}:{m:02d}"
-    except ValueError:
-        await update.message.reply_text("❌ Неверный формат. Введи время как <code>08:30</code>:", parse_mode="HTML")
-        return CUSTOM_DAILY_INPUT
-    selected = context.user_data.setdefault("reminders", [])
-    _toggle(selected, {"type": ReminderType.daily_at, "offset_minutes": None, "daily_time": time_str})
     await update.message.reply_text(
         _menu_text(context), parse_mode="HTML", reply_markup=_reminder_keyboard(selected)
     )
@@ -445,7 +410,6 @@ def build_application(token: str) -> Application:
             DATETIME_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_datetime)],
             REMINDER_MENU: [CallbackQueryHandler(reminder_menu)],
             CUSTOM_INTERVAL_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_custom_interval)],
-            CUSTOM_DAILY_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_custom_daily)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )

@@ -476,24 +476,46 @@ document.querySelectorAll('.chip').forEach(chip => {
   });
 });
 
-// custom daily time
-$('toggleCustomDaily').addEventListener('click', () => {
-  $('customDailyRow').classList.toggle('hidden');
-  if (!$('customDailyRow').classList.contains('hidden')) {
-    $('customTime').focus();
+// custom interval ("за N времени")
+function parseIntervalToMinutes(text) {
+  text = (text || '').toLowerCase().trim();
+  if (/^\d+$/.test(text)) {
+    const v = parseInt(text);
+    return v > 0 ? v : null;
+  }
+  let total = 0, found = false;
+  const re = /(\d+)\s*([а-яёa-z]+)/g;
+  let mt;
+  while ((mt = re.exec(text)) !== null) {
+    const n = parseInt(mt[1]);
+    const u = mt[2][0];
+    if (u === 'д' || u === 'd') { total += n * 1440; found = true; }
+    else if (u === 'ч' || u === 'h') { total += n * 60; found = true; }
+    else if (u === 'м' || u === 'm') { total += n; found = true; }
+  }
+  return (found && total > 0) ? total : null;
+}
+
+$('toggleCustomInterval').addEventListener('click', () => {
+  $('customIntervalRow').classList.toggle('hidden');
+  if (!$('customIntervalRow').classList.contains('hidden')) {
+    $('customInterval').focus();
   }
 });
 
-$('addCustomDaily').addEventListener('click', () => {
-  const val = $('customTime').value;
-  if (!val) return;
-  const exists = selectedReminders.some(r => r.type === 'daily_at' && r.daily_time === val);
+$('addCustomInterval').addEventListener('click', () => {
+  const minutes = parseIntervalToMinutes($('customInterval').value);
+  if (!minutes) {
+    toast('Не понял интервал. Примеры: 90, 3ч, 1д 6ч', 'error');
+    return;
+  }
+  const exists = selectedReminders.some(r => r.type === 'before_minutes' && r.offset_minutes === minutes);
   if (!exists) {
-    selectedReminders.push({ type: 'daily_at', offset_minutes: null, daily_time: val });
+    selectedReminders.push({ type: 'before_minutes', offset_minutes: minutes, daily_time: null });
     renderSelectedReminders();
   }
-  $('customDailyRow').classList.add('hidden');
-  $('customTime').value = '';
+  $('customIntervalRow').classList.add('hidden');
+  $('customInterval').value = '';
 });
 
 /* ─── Boot ────────────────────────────────────────────────────────────── */

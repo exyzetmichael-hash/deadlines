@@ -36,3 +36,11 @@ class Reminder(Base):
     last_sent_at = Column(DateTime, nullable=True)
 
     deadline = relationship("Deadline", back_populates="reminders")
+
+
+class Setting(Base):
+    """Простое key-value хранилище служебного состояния (напр. дата последней сводки)."""
+    __tablename__ = "settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=True)

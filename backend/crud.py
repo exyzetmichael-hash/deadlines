@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
-from models import Deadline, Reminder
+from models import Deadline, Reminder, Setting
 from schemas import DeadlineCreate, DeadlineUpdate, ReminderCreate, RemainingTime
 
 
@@ -88,3 +88,17 @@ def mark_reminder_sent(db: Session, reminder_id: int):
     if r:
         r.last_sent_at = datetime.now(timezone.utc)
         db.commit()
+
+
+def get_setting(db: Session, key: str) -> str | None:
+    s = db.query(Setting).filter(Setting.key == key).first()
+    return s.value if s else None
+
+
+def set_setting(db: Session, key: str, value: str):
+    s = db.query(Setting).filter(Setting.key == key).first()
+    if s:
+        s.value = value
+    else:
+        db.add(Setting(key=key, value=value))
+    db.commit()

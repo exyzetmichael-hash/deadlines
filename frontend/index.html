@@ -82,21 +82,20 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">Напоминания</label>
+          <label class="form-label">Напоминания <span class="optional">за сколько до события</span></label>
           <div class="reminder-chips" id="reminderChips">
             <button type="button" class="chip" data-type="before_minutes" data-offset="30">За 30 мин</button>
             <button type="button" class="chip" data-type="before_minutes" data-offset="60">За 1 час</button>
             <button type="button" class="chip" data-type="before_minutes" data-offset="120">За 2 часа</button>
             <button type="button" class="chip" data-type="before_minutes" data-offset="1440">За 1 день</button>
-            <button type="button" class="chip" data-type="daily_at" data-time="09:00">Каждый день 9:00</button>
-            <button type="button" class="chip" data-type="daily_at" data-time="21:00">Каждый день 21:00</button>
           </div>
-          <div class="custom-daily hidden" id="customDailyRow">
-            <input class="form-input custom-time-input" id="customTime" type="time" placeholder="08:00" />
-            <button type="button" class="btn-ghost" id="addCustomDaily">+ Добавить</button>
+          <div class="custom-daily hidden" id="customIntervalRow">
+            <input class="form-input custom-time-input" id="customInterval" type="text" placeholder="напр. 3ч, 90, 1д 6ч" />
+            <button type="button" class="btn-ghost" id="addCustomInterval">+ Добавить</button>
           </div>
-          <button type="button" class="btn-ghost btn-custom-reminder" id="toggleCustomDaily">⏰ Своё время для ежедневного напоминания</button>
+          <button type="button" class="btn-ghost btn-custom-reminder" id="toggleCustomInterval">⚙️ Свой интервал</button>
           <div class="selected-reminders" id="selectedReminders"></div>
+          <p class="optional" style="margin-top:10px;display:block;font-size:0.78rem;">☀️ Ежедневная сводка со всеми дедлайнами приходит в боте автоматически каждое утро.</p>
         </div>
 
         <div class="form-actions">
