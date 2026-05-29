@@ -1,0 +1,24 @@
+name: Keep Render service awake
+
+# Пингует /health каждые 5 минут, чтобы Render free-tier не засыпал
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://deadlines.onrender.com/health || echo "000")
+            echo "Attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Service is awake."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Health check did not return 200, but wake-up was triggered."
