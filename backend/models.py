@@ -18,6 +18,7 @@ class Deadline(Base):
     description = Column(String, default="")
     deadline_at = Column(DateTime, nullable=False)
     color = Column(String, default="#6366f1")
+    archived = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

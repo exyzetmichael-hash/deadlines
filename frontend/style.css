@@ -204,6 +204,31 @@ body {
   color: var(--text-muted); border-radius: 100px; padding: 2px 7px;
 }
 
+/* ─── Archive ────────────────────────────────────────────────────────── */
+.archive { margin-top: 36px; }
+
+.archive-toggle {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-secondary); font-family: inherit;
+  font-size: 0.85rem; font-weight: 600; letter-spacing: 0.02em;
+  padding: 8px 0; transition: color var(--transition);
+}
+.archive-toggle:hover { color: var(--text-primary); }
+
+.archive-chevron { transition: transform var(--transition); flex-shrink: 0; }
+.archive-toggle[aria-expanded="true"] .archive-chevron { transform: rotate(90deg); }
+
+.archive-count {
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-muted); border-radius: 100px;
+  padding: 1px 9px; font-size: 0.72rem;
+}
+
+.archive-grid { margin-top: 16px; opacity: 0.85; }
+.archive-grid .card { box-shadow: none; }
+.archive-grid .card::before { opacity: 0.4; }
+
 /* ─── States ─────────────────────────────────────────────────────────── */
 .loading-state, .empty-state {
   grid-column: 1/-1;

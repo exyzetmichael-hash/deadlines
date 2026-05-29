@@ -38,6 +38,8 @@ async def check_reminders():
             if reminder.type != ReminderType.before_minutes:
                 continue  # ежедневные напоминания заменены глобальной сводкой
             deadline = reminder.deadline
+            if deadline.archived:
+                continue
             deadline_at = deadline.deadline_at
             if deadline_at.tzinfo is None:
                 deadline_at = deadline_at.replace(tzinfo=timezone.utc)
@@ -92,6 +94,8 @@ async def _maybe_send_summary(db: Session, now: datetime):
     deadlines = crud.get_deadlines(db)
     upcoming = []
     for dl in deadlines:
+        if dl.archived:
+            continue
         r = crud.compute_remaining(dl.deadline_at)
         if not r.is_past:
             upcoming.append((dl, r))

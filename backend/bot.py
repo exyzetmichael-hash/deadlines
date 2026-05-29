@@ -137,7 +137,7 @@ async def list_deadlines(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     db = _db_factory()
     try:
-        deadlines = crud.get_deadlines(db)
+        deadlines = [d for d in crud.get_deadlines(db) if not d.archived]
         if not deadlines:
             await update.message.reply_text("Нет активных дедлайнов. Добавь первый: /add")
             return
@@ -176,6 +176,8 @@ async def today_deadlines(update: Update, context: ContextTypes.DEFAULT_TYPE):
         deadlines = crud.get_deadlines(db)
         upcoming = []
         for dl in deadlines:
+            if dl.archived:
+                continue
             r = crud.compute_remaining(dl.deadline_at)
             if not r.is_past and r.total_seconds <= 172800:
                 upcoming.append((dl, r))

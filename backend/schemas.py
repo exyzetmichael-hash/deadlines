@@ -63,6 +63,7 @@ class DeadlineUpdate(BaseModel):
     description: Optional[str] = None
     deadline_at: Optional[datetime] = None
     color: Optional[str] = None
+    archived: Optional[bool] = None
 
     @field_validator("deadline_at")
     @classmethod
@@ -78,6 +79,7 @@ class DeadlineOut(BaseModel):
     description: str
     deadline_at: datetime
     color: str
+    archived: bool
     created_at: datetime
     reminders: list[ReminderOut]
     remaining: RemainingTime

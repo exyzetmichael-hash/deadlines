@@ -41,6 +41,15 @@
           Добавить дедлайн
         </button>
       </div>
+
+      <section class="archive hidden" id="archiveSection">
+        <button class="archive-toggle" id="archiveToggle" aria-expanded="false">
+          <svg class="archive-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span>Архив</span>
+          <span class="archive-count" id="archiveCount">0</span>
+        </button>
+        <div class="deadlines-grid archive-grid hidden" id="archiveGrid"></div>
+      </section>
     </main>
   </div>
 
@@ -118,6 +127,7 @@
       <div id="detailBody"></div>
       <div class="form-actions">
         <button class="btn-danger" id="deleteBtn">Удалить</button>
+        <button class="btn-ghost" id="archiveBtn">Архивировать</button>
         <button class="btn-primary" id="editBtn">Редактировать</button>
       </div>
     </div>

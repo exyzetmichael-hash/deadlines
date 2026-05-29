@@ -113,12 +113,13 @@ function render() {
 
 function renderSummary() {
   const bar = $('summaryBar');
-  const total = deadlines.length;
-  const urgent = deadlines.filter(d => {
+  const active = deadlines.filter(d => !d.archived);
+  const total = active.length;
+  const urgent = active.filter(d => {
     const r = computeRemaining(d.deadline_at);
     return !r.is_past && r.total_seconds < 86400;
   }).length;
-  const past = deadlines.filter(d => computeRemaining(d.deadline_at).is_past).length;
+  const past = active.filter(d => computeRemaining(d.deadline_at).is_past).length;
 
   if (total === 0) { bar.innerHTML = ''; return; }
 
@@ -157,15 +158,30 @@ function pastEnding(n) {
 function renderGrid() {
   const grid = $('deadlinesGrid');
   const empty = $('emptyState');
+  const archiveSection = $('archiveSection');
+  const archiveGrid = $('archiveGrid');
 
-  if (deadlines.length === 0) {
+  const active = deadlines.filter(d => !d.archived);
+  const archived = deadlines.filter(d => d.archived);
+
+  // Активные
+  if (active.length === 0) {
     grid.innerHTML = '';
     empty.classList.remove('hidden');
-    clearInterval(countdownInterval);
-    return;
+  } else {
+    empty.classList.add('hidden');
+    grid.innerHTML = active.map(cardHTML).join('');
   }
-  empty.classList.add('hidden');
-  grid.innerHTML = deadlines.map(cardHTML).join('');
+
+  // Архив
+  if (archived.length === 0) {
+    archiveSection.classList.add('hidden');
+    archiveGrid.innerHTML = '';
+  } else {
+    archiveSection.classList.remove('hidden');
+    $('archiveCount').textContent = archived.length;
+    archiveGrid.innerHTML = archived.map(cardHTML).join('');
+  }
 
   clearInterval(countdownInterval);
   countdownInterval = setInterval(() => {
@@ -237,6 +253,7 @@ function openDetail(id) {
 
   $('detailTitle').textContent = dl.title;
   const r = computeRemaining(dl.deadline_at);
+  $('archiveBtn').textContent = dl.archived ? 'Вернуть из архива' : 'Архивировать';
 
   $('detailBody').innerHTML = `
     <div class="detail-meta">
@@ -418,6 +435,35 @@ $('deleteBtn').addEventListener('click', async () => {
   } catch (e) {
     toast('Ошибка: ' + e.message, 'error');
   }
+});
+
+/* ─── Archive / Restore ───────────────────────────────────────────────── */
+$('archiveBtn').addEventListener('click', async () => {
+  if (!currentDetailId) return;
+  const dl = deadlines.find(d => d.id === currentDetailId);
+  if (!dl) return;
+  const next = !dl.archived;
+  try {
+    // Минимальный PUT только с archived: серверный update не трогает
+    // напоминания (их синкает только форма редактирования), так что они
+    // сохраняются.
+    await apiFetch(`/deadlines/${currentDetailId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ archived: next }),
+    });
+    toast(next ? 'Перенесено в архив' : 'Возвращено из архива');
+    closeDetail();
+    await loadDeadlines();
+  } catch (e) {
+    toast('Ошибка: ' + e.message, 'error');
+  }
+});
+
+$('archiveToggle').addEventListener('click', () => {
+  const grid = $('archiveGrid');
+  const btn = $('archiveToggle');
+  const open = grid.classList.toggle('hidden');
+  btn.setAttribute('aria-expanded', String(!open));
 });
 
 $('editBtn').addEventListener('click', () => {

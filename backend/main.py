@@ -27,6 +27,20 @@ CHAT_ID = int(os.getenv("CHAT_ID", "0"))
 
 models.Base.metadata.create_all(bind=engine)
 
+
+def _ensure_schema():
+    """Лёгкая миграция: добавляет новые колонки в уже существующую БД."""
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    cols = [c["name"] for c in insp.get_columns("deadlines")]
+    if "archived" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE deadlines ADD COLUMN archived BOOLEAN DEFAULT FALSE NOT NULL"))
+        logger.info("Migration: added deadlines.archived")
+
+
+_ensure_schema()
+
 bot_app = None
 
 
@@ -68,6 +82,7 @@ def _enrich(dl: models.Deadline) -> DeadlineOut:
         description=dl.description or "",
         deadline_at=dl.deadline_at,
         color=dl.color,
+        archived=dl.archived,
         created_at=dl.created_at,
         reminders=[ReminderOut.model_validate(r) for r in dl.reminders],
         remaining=crud.compute_remaining(dl.deadline_at),
