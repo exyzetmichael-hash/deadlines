@@ -30,6 +30,11 @@ CHAT_ID = int(os.getenv("CHAT_ID", "0"))
 WEBHOOK_URL = (
     os.getenv("WEBHOOK_URL", "").strip()
     or os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    or (
+        f"https://{os.getenv('RENDER_SERVICE_NAME')}.onrender.com"
+        if os.getenv("RENDER_SERVICE_NAME")
+        else ""
+    )
 )
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
 
