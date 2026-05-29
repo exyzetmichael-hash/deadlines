@@ -84,7 +84,7 @@ async def _maybe_send_summary(db: Session, now: datetime):
     target = local_now.replace(hour=h, minute=m, second=0, microsecond=0)
     # Окно отправки: от целевого времени до +2 часов. В 9:00 (и при небольшом
     # опоздании из-за сна) сводка придёт; случайный дневной рестарт её не вызовет.
-    if not (target <= local_now <= target + timedelta(hours=2)):
+    if not (target <= local_now <= target + timedelta(hours=5)):
         return
 
     today = local_now.date().isoformat()
