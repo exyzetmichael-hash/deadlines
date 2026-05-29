@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import urllib.request
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Header
@@ -57,9 +58,25 @@ _ensure_schema()
 bot_app = None
 
 
+async def _self_keep_alive(health_url: str):
+    """Ping own health endpoint every 10 min so Render free tier never sleeps."""
+    while True:
+        await asyncio.sleep(600)
+        try:
+            await asyncio.to_thread(urllib.request.urlopen, health_url, None, 10)
+            logger.debug("Self-ping OK")
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global bot_app
+    keep_alive_task = None
+    if WEBHOOK_URL:
+        health_url = WEBHOOK_URL.rstrip("/") + "/health"
+        keep_alive_task = asyncio.create_task(_self_keep_alive(health_url))
+        logger.info(f"Self-keep-alive started: {health_url}")
     if BOT_TOKEN and CHAT_ID:
         init_bot(SessionLocal, CHAT_ID)
         bot_app = build_application(BOT_TOKEN)
@@ -85,6 +102,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("BOT_TOKEN or CHAT_ID not set — bot disabled")
     yield
+    if keep_alive_task:
+        keep_alive_task.cancel()
+        try:
+            await keep_alive_task
+        except asyncio.CancelledError:
+            pass
     if bot_app:
         if not WEBHOOK_URL and bot_app.updater.running:
             await bot_app.updater.stop()
