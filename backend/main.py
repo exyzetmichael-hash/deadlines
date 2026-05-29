@@ -63,7 +63,8 @@ async def _self_keep_alive(health_url: str):
     while True:
         await asyncio.sleep(600)
         try:
-            await asyncio.to_thread(urllib.request.urlopen, health_url, None, 10)
+            resp = await asyncio.to_thread(urllib.request.urlopen, health_url, None, 10)
+            resp.close()
             logger.debug("Self-ping OK")
         except Exception:
             pass
