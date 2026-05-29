@@ -25,9 +25,12 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 CHAT_ID = int(os.getenv("CHAT_ID", "0"))
-# Если задан WEBHOOK_URL (публичный адрес сервиса) — бот работает через webhook,
-# иначе через polling. Webhook надёжнее на Render: входящее сообщение будит сервис.
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()
+# WEBHOOK_URL можно задать явно; если не задан — используем RENDER_EXTERNAL_URL,
+# которую Render выставляет автоматически для web-сервисов.
+WEBHOOK_URL = (
+    os.getenv("WEBHOOK_URL", "").strip()
+    or os.getenv("RENDER_EXTERNAL_URL", "").strip()
+)
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
 
 models.Base.metadata.create_all(bind=engine)
