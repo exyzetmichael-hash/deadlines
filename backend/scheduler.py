@@ -1,20 +1,12 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from models import ReminderType
-import os
+from config import LOCAL_TZ
 import crud
 import logging
 
 logger = logging.getLogger(__name__)
-
-# Часовой пояс пользователя для ежедневных напоминаний.
-# Задаётся переменной окружения TZ (например, Europe/Moscow). По умолчанию UTC.
-try:
-    LOCAL_TZ = ZoneInfo(os.getenv("TZ", "UTC"))
-except Exception:
-    LOCAL_TZ = timezone.utc
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 _bot = None
