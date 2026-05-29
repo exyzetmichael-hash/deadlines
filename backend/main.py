@@ -73,6 +73,11 @@ def _enrich(dl: models.Deadline) -> DeadlineOut:
     )
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.get("/api/deadlines", response_model=list[DeadlineOut])
 def list_deadlines(db: Session = Depends(get_db)):
     return [_enrich(dl) for dl in crud.get_deadlines(db)]
