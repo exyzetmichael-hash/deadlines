@@ -16,3 +16,4 @@ services:
         sync: false
       - key: WEBHOOK_URL
         value: https://deadlines.onrender.com
+        sync: false
