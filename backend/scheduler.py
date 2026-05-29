@@ -1,11 +1,20 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from models import ReminderType
+import os
 import crud
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Часовой пояс пользователя для ежедневных напоминаний.
+# Задаётся переменной окружения TZ (например, Europe/Moscow). По умолчанию UTC.
+try:
+    LOCAL_TZ = ZoneInfo(os.getenv("TZ", "UTC"))
+except Exception:
+    LOCAL_TZ = timezone.utc
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 _bot = None
@@ -57,16 +66,20 @@ async def check_reminders():
             elif reminder.type == ReminderType.daily_at:
                 try:
                     h, m = map(int, reminder.daily_time.split(":"))
-                    target = now.replace(hour=h, minute=m, second=0, microsecond=0)
-                    diff = abs((now - target).total_seconds())
-                    if diff <= 60:
+                    # Сравниваем в часовом поясе пользователя, а не в UTC
+                    local_now = now.astimezone(LOCAL_TZ)
+                    target_local = local_now.replace(hour=h, minute=m, second=0, microsecond=0)
+                    # Срабатывает один раз за локальные сутки, как только наступило целевое время.
+                    # Устойчиво к "сну": если сервис простаивал в нужную минуту,
+                    # напоминание уйдёт сразу при следующей проверке в этот же день.
+                    if local_now >= target_local:
                         if reminder.last_sent_at is None:
                             should_send = True
                         else:
                             last = reminder.last_sent_at
                             if last.tzinfo is None:
                                 last = last.replace(tzinfo=timezone.utc)
-                            if (now - last).total_seconds() > 3600:
+                            if last.astimezone(LOCAL_TZ).date() < local_now.date():
                                 should_send = True
                 except ValueError:
                     pass
