@@ -424,20 +424,19 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+BOT_COMMANDS = [
+    BotCommand("add", "Добавить дедлайн"),
+    BotCommand("list", "Список дедлайнов"),
+    BotCommand("today", "Ближайшие 48 часов"),
+    BotCommand("delete", "Удалить дедлайн по id"),
+    BotCommand("help", "Справка"),
+    BotCommand("cancel", "Отменить создание"),
+]
+
+
 # ─── Сборка приложения ──────────────────────────────────────────────────────
-async def _post_init(app: Application):
-    await app.bot.set_my_commands([
-        BotCommand("add", "Добавить дедлайн"),
-        BotCommand("list", "Список дедлайнов"),
-        BotCommand("today", "Ближайшие 48 часов"),
-        BotCommand("delete", "Удалить дедлайн по id"),
-        BotCommand("help", "Справка"),
-        BotCommand("cancel", "Отменить создание"),
-    ])
-
-
 def build_application(token: str) -> Application:
-    app = Application.builder().token(token).post_init(_post_init).build()
+    app = Application.builder().token(token).build()
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("add", add_start)],

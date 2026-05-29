@@ -13,8 +13,15 @@ let detailInterval = null;
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2, '0');
 
+// API возвращает naive datetime без 'Z' — принудительно трактуем как UTC
+function parseApiDate(str) {
+  if (!str) return new Date(NaN);
+  if (!str.endsWith('Z') && !str.match(/[+-]\d{2}:\d{2}$/)) str += 'Z';
+  return new Date(str);
+}
+
 function formatDate(iso) {
-  const d = new Date(iso);
+  const d = parseApiDate(iso);
   return d.toLocaleString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
@@ -36,7 +43,7 @@ function urgencyLabel(r) {
 
 function computeRemaining(deadlineAt) {
   const now = Date.now();
-  const target = new Date(deadlineAt).getTime();
+  const target = parseApiDate(deadlineAt).getTime();
   const diff = target - now;
   const is_past = diff <= 0;
   const abs = Math.abs(Math.floor(diff / 1000));
@@ -305,18 +312,20 @@ function openModal(dl = null) {
     $('editId').value = dl.id;
     $('titleInput').value = dl.title;
     $('descInput').value = dl.description || '';
-    const local = new Date(dl.deadline_at);
-    local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
-    $('datetimeInput').value = local.toISOString().slice(0, 16);
+    // Показываем время в локальной зоне браузера для datetime-local инпута
+    const utcMs = parseApiDate(dl.deadline_at).getTime();
+    const localDate = new Date(utcMs - new Date().getTimezoneOffset() * 60000);
+    $('datetimeInput').value = localDate.toISOString().slice(0, 16);
 
     selectedReminders = dl.reminders.map(r => ({ ...r, _existing: true }));
   } else {
     $('modalTitle').textContent = 'Новый дедлайн';
     $('submitBtn').textContent = 'Создать';
     $('editId').value = '';
+    // Предзаполняем «сейчас + 1 час» в локальном времени браузера
     const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset() + 60);
-    $('datetimeInput').value = now.toISOString().slice(0, 16);
+    const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000 + 3600000);
+    $('datetimeInput').value = localNow.toISOString().slice(0, 16);
   }
 
   $('customDailyRow').classList.add('hidden');

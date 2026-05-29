@@ -15,7 +15,7 @@ import models
 from database import engine, SessionLocal, get_db
 from schemas import DeadlineCreate, DeadlineUpdate, DeadlineOut, ReminderCreate, ReminderOut
 from scheduler import init_scheduler
-from bot import build_application, init_bot
+from bot import build_application, init_bot, BOT_COMMANDS
 
 load_dotenv()
 
@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
         await bot_app.initialize()
         await bot_app.start()
         await bot_app.updater.start_polling(drop_pending_updates=True)
+        await bot_app.bot.set_my_commands(BOT_COMMANDS)
         init_scheduler(bot_app.bot, CHAT_ID, SessionLocal)
         logger.info("Bot and scheduler started")
     else:
