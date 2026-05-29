@@ -422,5 +422,10 @@ def build_application(token: str) -> Application:
     app.add_handler(CommandHandler("today", today_deadlines))
     app.add_handler(CommandHandler("delete", delete_deadline))
     app.add_handler(conv)
+    app.add_error_handler(_on_error)
 
     return app
+
+
+async def _on_error(update: object, context: ContextTypes.DEFAULT_TYPE):
+    logger.error("Bot handler error", exc_info=context.error)

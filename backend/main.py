@@ -3,12 +3,13 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+from telegram import Update
 
 import crud
 import models
@@ -24,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 CHAT_ID = int(os.getenv("CHAT_ID", "0"))
+# Если задан WEBHOOK_URL (публичный адрес сервиса) — бот работает через webhook,
+# иначе через polling. Webhook надёжнее на Render: входящее сообщение будит сервис.
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -52,15 +57,29 @@ async def lifespan(app: FastAPI):
         bot_app = build_application(BOT_TOKEN)
         await bot_app.initialize()
         await bot_app.start()
-        await bot_app.updater.start_polling(drop_pending_updates=True)
         await bot_app.bot.set_my_commands(BOT_COMMANDS)
+        if WEBHOOK_URL:
+            hook = WEBHOOK_URL.rstrip("/") + "/telegram"
+            await bot_app.bot.set_webhook(
+                url=hook,
+                secret_token=WEBHOOK_SECRET or None,
+                allowed_updates=Update.ALL_TYPES,
+                drop_pending_updates=True,
+            )
+            logger.info(f"Bot started in WEBHOOK mode: {hook}")
+        else:
+            # На случай ранее выставленного webhook — снимаем перед polling
+            await bot_app.bot.delete_webhook(drop_pending_updates=True)
+            await bot_app.updater.start_polling(drop_pending_updates=True)
+            logger.info("Bot started in POLLING mode")
         init_scheduler(bot_app.bot, CHAT_ID, SessionLocal)
-        logger.info("Bot and scheduler started")
+        logger.info("Scheduler started")
     else:
         logger.warning("BOT_TOKEN or CHAT_ID not set — bot disabled")
     yield
     if bot_app:
-        await bot_app.updater.stop()
+        if not WEBHOOK_URL and bot_app.updater.running:
+            await bot_app.updater.stop()
         await bot_app.stop()
         await bot_app.shutdown()
 
@@ -73,6 +92,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.post("/telegram")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+):
+    if WEBHOOK_SECRET and x_telegram_bot_api_secret_token != WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if not bot_app:
+        raise HTTPException(status_code=503, detail="Bot not running")
+    data = await request.json()
+    update = Update.de_json(data, bot_app.bot)
+    await bot_app.process_update(update)
+    return {"ok": True}
 
 
 def _enrich(dl: models.Deadline) -> DeadlineOut:
