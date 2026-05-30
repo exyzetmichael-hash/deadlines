@@ -126,6 +126,16 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def no_cache_static(request: Request, call_next):
+    """Статика (html/css/js) не кэшируется — после деплоя браузер всегда берёт свежие файлы."""
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith((".html", ".css", ".js")):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
 @app.post("/telegram")
 async def telegram_webhook(
     request: Request,

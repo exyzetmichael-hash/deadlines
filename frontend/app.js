@@ -8,6 +8,8 @@ let selectedColor = '#6366f1';
 let selectedReminders = [];
 let currentDetailId = null;
 let detailInterval = null;
+let viewMode = localStorage.getItem('viewMode') || 'grid';
+let focusIndex = 0;
 
 /* ─── Utility ─────────────────────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
@@ -109,6 +111,41 @@ async function loadDeadlines() {
 function render() {
   renderSummary();
   renderGrid();
+  renderFocus();
+  applyViewMode();
+  startTicking();
+}
+
+function startTicking() {
+  clearInterval(countdownInterval);
+  countdownInterval = setInterval(updateAllClocks, 1000);
+  updateAllClocks();
+}
+
+// Единый тик: обновляет все часы на странице (и в сетке, и в фокусе) + бейджи и прогресс
+function updateAllClocks() {
+  const byId = {};
+  deadlines.forEach(d => (byId[d.id] = d));
+
+  document.querySelectorAll('.flip-clock[data-deadline-id]').forEach(clock => {
+    const dl = byId[clock.dataset.deadlineId];
+    if (dl) tickClock(clock, computeRemaining(dl.deadline_at));
+  });
+
+  document.querySelectorAll('.card[data-id], .focus-card[data-id]').forEach(node => {
+    const dl = byId[node.dataset.id];
+    if (!dl) return;
+    const r = computeRemaining(dl.deadline_at);
+    const badge = node.querySelector('.card-badge');
+    if (badge) {
+      badge.className = `card-badge ${urgencyClass(r)}`;
+      badge.textContent = urgencyLabel(r);
+    }
+    const fill = node.querySelector('.card-progress-fill');
+    if (fill) fill.style.width = progressPct(dl) + '%';
+    const pctLabel = node.querySelector('.focus-progress-pct');
+    if (pctLabel) pctLabel.textContent = Math.round(progressPct(dl)) + '%';
+  });
 }
 
 function renderSummary() {
@@ -182,27 +219,6 @@ function renderGrid() {
     $('archiveCount').textContent = archived.length;
     archiveGrid.innerHTML = archived.map(cardHTML).join('');
   }
-
-  clearInterval(countdownInterval);
-  countdownInterval = setInterval(() => {
-    deadlines.forEach(dl => {
-      const card = document.querySelector(`.card[data-id="${dl.id}"]`);
-      if (!card) return;
-      const r = computeRemaining(dl.deadline_at);
-
-      const clock = card.querySelector('.flip-clock');
-      if (clock) tickClock(clock, r);
-
-      const badge = card.querySelector('.card-badge');
-      if (badge) {
-        badge.className = `card-badge ${urgencyClass(r)}`;
-        badge.textContent = urgencyLabel(r);
-      }
-
-      const fill = card.querySelector('.card-progress-fill');
-      if (fill) fill.style.width = progressPct(dl) + '%';
-    });
-  }, 1000);
 }
 
 function cardHTML(dl, index = 0) {
@@ -216,7 +232,7 @@ function cardHTML(dl, index = 0) {
       </div>
       ${dl.description ? `<div class="card-desc">${escHtml(dl.description)}</div>` : ''}
       <div class="card-countdown">
-        ${clockHTML(r)}
+        ${clockHTML(r, { id: dl.id, compact: true })}
       </div>
       <div class="card-progress"><div class="card-progress-fill" style="width:${progressPct(dl)}%"></div></div>
       <div class="card-footer">
@@ -230,12 +246,20 @@ function cardHTML(dl, index = 0) {
 }
 
 /* ─── Flip Clock ──────────────────────────────────────────────────────── */
-function clockUnits(r) {
+// compact (сетка): максимум 3 разряда — дни→д/ч/м или ч/м/с — чтобы всегда влезало.
+// полный (фокус/деталь): д/ч/м/с.
+function clockUnits(r, compact) {
   const u = [];
-  if (r.days > 0) u.push({ key: 'd', label: 'дней', value: String(r.days).padStart(2, '0') });
-  u.push({ key: 'h', label: 'час', value: pad(r.hours) });
-  u.push({ key: 'm', label: 'мин', value: pad(r.minutes) });
-  u.push({ key: 's', label: 'сек', value: pad(r.seconds) });
+  if (r.days > 0) {
+    u.push({ key: 'd', label: 'дней', value: String(r.days).padStart(2, '0') });
+    u.push({ key: 'h', label: 'час', value: pad(r.hours) });
+    u.push({ key: 'm', label: 'мин', value: pad(r.minutes) });
+    if (!compact) u.push({ key: 's', label: 'сек', value: pad(r.seconds) });
+  } else {
+    u.push({ key: 'h', label: 'час', value: pad(r.hours) });
+    u.push({ key: 'm', label: 'мин', value: pad(r.minutes) });
+    u.push({ key: 's', label: 'сек', value: pad(r.seconds) });
+  }
   return u;
 }
 
@@ -253,35 +277,37 @@ function unitHTML(u) {
   </div>`;
 }
 
-function clockInnerHTML(r) {
+function clockInnerHTML(r, compact) {
   if (r.is_past) return `<div class="flip-past">Срок прошёл</div>`;
-  return clockUnits(r)
+  return clockUnits(r, compact)
     .map((u, i) => (i > 0 ? '<span class="flip-colon">:</span>' : '') + unitHTML(u))
     .join('');
 }
 
-// Контейнер часов: data-sig/data-past нужны для дифф-обновления без полной перерисовки
-function clockHTML(r, extraClass = '') {
-  const sig = r.is_past ? 'past' : clockSig(clockUnits(r));
-  return `<div class="flip-clock ${extraClass}" data-sig="${sig}" data-past="${r.is_past}">${clockInnerHTML(r)}</div>`;
+// Контейнер часов: data-sig/past/compact нужны для дифф-обновления без полной перерисовки
+function clockHTML(r, { cls = '', id = null, compact = false } = {}) {
+  const sig = r.is_past ? 'past' : clockSig(clockUnits(r, compact));
+  const idAttr = id != null ? ` data-deadline-id="${id}"` : '';
+  return `<div class="flip-clock ${cls}"${idAttr} data-sig="${sig}" data-past="${r.is_past}" data-compact="${compact}">${clockInnerHTML(r, compact)}</div>`;
 }
 
 // Обновляет только изменившиеся цифры, подсвечивая их флип-анимацией
 function tickClock(container, r) {
+  const compact = container.dataset.compact === 'true';
   const past = r.is_past;
   if ((container.dataset.past === 'true') !== past) {
     container.dataset.past = String(past);
-    container.dataset.sig = past ? 'past' : clockSig(clockUnits(r));
-    container.innerHTML = clockInnerHTML(r);
+    container.dataset.sig = past ? 'past' : clockSig(clockUnits(r, compact));
+    container.innerHTML = clockInnerHTML(r, compact);
     return;
   }
   if (past) return;
 
-  const units = clockUnits(r);
+  const units = clockUnits(r, compact);
   const sig = clockSig(units);
   if (container.dataset.sig !== sig) {
     container.dataset.sig = sig;
-    container.innerHTML = clockInnerHTML(r);
+    container.innerHTML = clockInnerHTML(r, compact);
     return;
   }
 
@@ -313,6 +339,112 @@ function progressPct(dl) {
   return ((now - created) / (target - created)) * 100;
 }
 
+/* ─── Focus View ──────────────────────────────────────────────────────── */
+function activeDeadlines() {
+  return deadlines.filter(d => !d.archived);
+}
+
+function renderFocus() {
+  const stage = $('focusStage');
+  const nav = $('focusNav');
+  const list = activeDeadlines();
+
+  if (list.length === 0) {
+    stage.innerHTML = `
+      <div class="focus-empty">
+        <div class="empty-icon">◎</div>
+        <h2>Нет активных дедлайнов</h2>
+        <p>Добавь дедлайн, чтобы он появился здесь крупным планом</p>
+        <button class="btn-add" onclick="openModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Добавить дедлайн
+        </button>
+      </div>`;
+    nav.classList.add('hidden');
+    return;
+  }
+
+  if (focusIndex >= list.length) focusIndex = 0;
+  if (focusIndex < 0) focusIndex = list.length - 1;
+  const dl = list[focusIndex];
+
+  stage.innerHTML = focusCardHTML(dl);
+
+  if (list.length > 1) {
+    nav.classList.remove('hidden');
+    $('focusDots').innerHTML = list
+      .map((_, i) => `<button class="focus-dot ${i === focusIndex ? 'active' : ''}" data-i="${i}" aria-label="Дедлайн ${i + 1}"></button>`)
+      .join('');
+  } else {
+    nav.classList.add('hidden');
+  }
+}
+
+function focusCardHTML(dl) {
+  const r = computeRemaining(dl.deadline_at);
+  const color = dl.color || '#6366f1';
+  const list = activeDeadlines();
+  return `
+    <div class="focus-card" data-id="${dl.id}" style="--card-color:${color}">
+      <div class="focus-head">
+        <span class="focus-counter">${focusIndex + 1} / ${list.length}</span>
+        <span class="card-badge ${urgencyClass(r)}">${urgencyLabel(r)}</span>
+      </div>
+      <h1 class="focus-title">${escHtml(dl.title)}</h1>
+      ${dl.description ? `<p class="focus-desc">${escHtml(dl.description)}</p>` : ''}
+      <div class="focus-clock-wrap">
+        <div class="focus-clock-label">${r.is_past ? 'Статус' : 'До дедлайна'}</div>
+        ${clockHTML(r, { cls: 'xl', id: dl.id, compact: false })}
+      </div>
+      <div class="focus-progress">
+        <div class="card-progress"><div class="card-progress-fill" style="width:${progressPct(dl)}%"></div></div>
+        <span class="focus-progress-pct">${Math.round(progressPct(dl))}%</span>
+      </div>
+      <div class="focus-foot">
+        <span class="focus-date">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          ${formatDate(dl.deadline_at)}
+        </span>
+        ${dl.reminders.length ? `<span class="focus-reminders">${dl.reminders.map(rem => `<span class="reminder-tag">${reminderLabel(rem)}</span>`).join('')}</span>` : ''}
+      </div>
+      <div class="focus-actions">
+        <button class="btn-ghost" onclick="openDetail(${dl.id})">Подробнее</button>
+        <button class="btn-primary" onclick="editFromFocus(${dl.id})">Редактировать</button>
+      </div>
+    </div>`;
+}
+
+function editFromFocus(id) {
+  const dl = deadlines.find(d => d.id === id);
+  if (dl) openModal(dl);
+}
+
+function focusGo(delta) {
+  const list = activeDeadlines();
+  if (list.length === 0) return;
+  focusIndex = (focusIndex + delta + list.length) % list.length;
+  renderFocus();
+  startTicking();
+}
+
+/* ─── View Mode ───────────────────────────────────────────────────────── */
+function applyViewMode() {
+  $('focusView').classList.toggle('hidden', viewMode !== 'focus');
+  $('gridView').classList.toggle('hidden', viewMode !== 'grid');
+  document.querySelectorAll('#viewToggle .view-btn').forEach(b => {
+    const on = b.dataset.mode === viewMode;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  localStorage.setItem('viewMode', mode);
+  applyViewMode();
+  startTicking();
+}
+
 function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -336,7 +468,7 @@ function openDetail(id) {
     ${dl.description ? `<div class="detail-desc">${escHtml(dl.description)}</div>` : ''}
     <div class="detail-countdown" style="--card-color:${color}">
       <div class="detail-countdown-label">${r.is_past ? 'Статус' : 'До дедлайна'}</div>
-      ${clockHTML(r, 'lg')}
+      ${clockHTML(r, { cls: 'lg', compact: false })}
     </div>
     ${dl.reminders.length ? `
       <div class="detail-reminders">
@@ -545,6 +677,28 @@ $('detailOverlay').addEventListener('click', e => { if (e.target === $('detailOv
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeModal(); closeDetail(); }
+  // Стрелки листают дедлайны в фокус-режиме (если не открыта модалка/поле ввода)
+  if (viewMode === 'focus' && !document.querySelector('.modal-overlay:not(.hidden)')
+      && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) {
+    if (e.key === 'ArrowLeft') focusGo(-1);
+    if (e.key === 'ArrowRight') focusGo(1);
+  }
+});
+
+// Переключатель Фокус / Сетка
+document.querySelectorAll('#viewToggle .view-btn').forEach(btn => {
+  btn.addEventListener('click', () => setViewMode(btn.dataset.mode));
+});
+
+// Навигация в фокус-режиме
+$('focusPrev').addEventListener('click', () => focusGo(-1));
+$('focusNext').addEventListener('click', () => focusGo(1));
+$('focusDots').addEventListener('click', e => {
+  const dot = e.target.closest('.focus-dot');
+  if (!dot) return;
+  focusIndex = parseInt(dot.dataset.i);
+  renderFocus();
+  startTicking();
 });
 
 // color swatches
