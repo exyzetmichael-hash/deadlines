@@ -186,33 +186,39 @@ function renderGrid() {
   clearInterval(countdownInterval);
   countdownInterval = setInterval(() => {
     deadlines.forEach(dl => {
-      const el = document.querySelector(`[data-id="${dl.id}"] .countdown-units`);
-      if (!el) return;
+      const card = document.querySelector(`.card[data-id="${dl.id}"]`);
+      if (!card) return;
       const r = computeRemaining(dl.deadline_at);
-      el.innerHTML = countdownUnitsHTML(r, dl.color);
-      const badge = document.querySelector(`[data-id="${dl.id}"] .card-badge`);
+
+      const clock = card.querySelector('.flip-clock');
+      if (clock) tickClock(clock, r);
+
+      const badge = card.querySelector('.card-badge');
       if (badge) {
         badge.className = `card-badge ${urgencyClass(r)}`;
         badge.textContent = urgencyLabel(r);
       }
+
+      const fill = card.querySelector('.card-progress-fill');
+      if (fill) fill.style.width = progressPct(dl) + '%';
     });
   }, 1000);
 }
 
-function cardHTML(dl) {
+function cardHTML(dl, index = 0) {
   const r = computeRemaining(dl.deadline_at);
   const color = dl.color || '#6366f1';
   return `
-    <div class="card" data-id="${dl.id}" style="--card-color:${color}" onclick="openDetail(${dl.id})">
+    <div class="card" data-id="${dl.id}" style="--card-color:${color};--i:${index}" onclick="openDetail(${dl.id})">
       <div class="card-header">
         <div class="card-title">${escHtml(dl.title)}</div>
         <div class="card-badge ${urgencyClass(r)}">${urgencyLabel(r)}</div>
       </div>
       ${dl.description ? `<div class="card-desc">${escHtml(dl.description)}</div>` : ''}
       <div class="card-countdown">
-        <div class="countdown-label">${r.is_past ? 'Прошёл' : 'Осталось'}</div>
-        <div class="countdown-units">${countdownUnitsHTML(r, color)}</div>
+        ${clockHTML(r)}
       </div>
+      <div class="card-progress"><div class="card-progress-fill" style="width:${progressPct(dl)}%"></div></div>
       <div class="card-footer">
         <div class="card-date">${formatDate(dl.deadline_at)}</div>
         <div class="card-reminders">
@@ -223,21 +229,88 @@ function cardHTML(dl) {
   `;
 }
 
-function countdownUnitsHTML(r, color) {
-  if (r.is_past) return `<div class="countdown-unit"><div class="countdown-num" style="color:var(--text-muted)">—</div></div>`;
-  const units = [];
-  if (r.days > 0 || true) {
-    if (r.days > 0) units.push([pad(r.days), 'дней']);
-    units.push([pad(r.hours), 'ч']);
-    units.push([pad(r.minutes), 'мин']);
-    units.push([pad(r.seconds), 'сек']);
+/* ─── Flip Clock ──────────────────────────────────────────────────────── */
+function clockUnits(r) {
+  const u = [];
+  if (r.days > 0) u.push({ key: 'd', label: 'дней', value: String(r.days).padStart(2, '0') });
+  u.push({ key: 'h', label: 'час', value: pad(r.hours) });
+  u.push({ key: 'm', label: 'мин', value: pad(r.minutes) });
+  u.push({ key: 's', label: 'сек', value: pad(r.seconds) });
+  return u;
+}
+
+function clockSig(units) {
+  return units.map(u => u.key + u.value.length).join('|');
+}
+
+function unitHTML(u) {
+  const cells = [...u.value]
+    .map(ch => `<span class="flip-cell"><span class="flip-num">${ch}</span></span>`)
+    .join('');
+  return `<div class="flip-unit" data-key="${u.key}">
+    <div class="flip-cells">${cells}</div>
+    <div class="flip-label">${u.label}</div>
+  </div>`;
+}
+
+function clockInnerHTML(r) {
+  if (r.is_past) return `<div class="flip-past">Срок прошёл</div>`;
+  return clockUnits(r)
+    .map((u, i) => (i > 0 ? '<span class="flip-colon">:</span>' : '') + unitHTML(u))
+    .join('');
+}
+
+// Контейнер часов: data-sig/data-past нужны для дифф-обновления без полной перерисовки
+function clockHTML(r, extraClass = '') {
+  const sig = r.is_past ? 'past' : clockSig(clockUnits(r));
+  return `<div class="flip-clock ${extraClass}" data-sig="${sig}" data-past="${r.is_past}">${clockInnerHTML(r)}</div>`;
+}
+
+// Обновляет только изменившиеся цифры, подсвечивая их флип-анимацией
+function tickClock(container, r) {
+  const past = r.is_past;
+  if ((container.dataset.past === 'true') !== past) {
+    container.dataset.past = String(past);
+    container.dataset.sig = past ? 'past' : clockSig(clockUnits(r));
+    container.innerHTML = clockInnerHTML(r);
+    return;
   }
-  return units.map(([n, label]) => `
-    <div class="countdown-unit">
-      <div class="countdown-num" style="color:${color}">${n}</div>
-      <div class="countdown-sub">${label}</div>
-    </div>
-  `).join('');
+  if (past) return;
+
+  const units = clockUnits(r);
+  const sig = clockSig(units);
+  if (container.dataset.sig !== sig) {
+    container.dataset.sig = sig;
+    container.innerHTML = clockInnerHTML(r);
+    return;
+  }
+
+  units.forEach(u => {
+    const unitEl = container.querySelector(`.flip-unit[data-key="${u.key}"]`);
+    if (!unitEl) return;
+    const cells = unitEl.querySelectorAll('.flip-cell');
+    [...u.value].forEach((ch, i) => {
+      const cell = cells[i];
+      if (!cell) return;
+      const numEl = cell.querySelector('.flip-num');
+      if (numEl.textContent !== ch) {
+        numEl.textContent = ch;
+        cell.classList.remove('flip');
+        void cell.offsetWidth; // форсируем reflow, чтобы перезапустить анимацию
+        cell.classList.add('flip');
+      }
+    });
+  });
+}
+
+function progressPct(dl) {
+  const created = parseApiDate(dl.created_at).getTime();
+  const target = parseApiDate(dl.deadline_at).getTime();
+  const now = Date.now();
+  if (!created || target <= created) return now >= target ? 100 : 0;
+  if (now >= target) return 100;
+  if (now <= created) return 0;
+  return ((now - created) / (target - created)) * 100;
 }
 
 function escHtml(str) {
@@ -261,9 +334,9 @@ function openDetail(id) {
       ${formatDate(dl.deadline_at)}
     </div>
     ${dl.description ? `<div class="detail-desc">${escHtml(dl.description)}</div>` : ''}
-    <div class="detail-countdown">
-      <div class="detail-countdown-label">${r.is_past ? 'Прошёл' : 'Осталось'}</div>
-      <div class="detail-countdown-units" id="detailUnits">${detailUnitsHTML(r, color)}</div>
+    <div class="detail-countdown" style="--card-color:${color}">
+      <div class="detail-countdown-label">${r.is_past ? 'Статус' : 'До дедлайна'}</div>
+      ${clockHTML(r, 'lg')}
     </div>
     ${dl.reminders.length ? `
       <div class="detail-reminders">
@@ -277,29 +350,11 @@ function openDetail(id) {
 
   clearInterval(detailInterval);
   detailInterval = setInterval(() => {
-    const units = $('detailUnits');
-    if (units) {
-      const fresh = computeRemaining(dl.deadline_at);
-      units.innerHTML = detailUnitsHTML(fresh, color);
-    }
+    const clock = $('detailOverlay').querySelector('.flip-clock');
+    if (clock) tickClock(clock, computeRemaining(dl.deadline_at));
   }, 1000);
 
   $('detailOverlay').classList.remove('hidden');
-}
-
-function detailUnitsHTML(r, color) {
-  if (r.is_past) return `<div class="detail-unit"><div class="detail-num" style="color:var(--text-muted)">—</div><div class="detail-sub">прошёл</div></div>`;
-  const parts = [];
-  if (r.days > 0) parts.push([r.days, 'дней']);
-  parts.push([pad(r.hours), 'часов']);
-  parts.push([pad(r.minutes), 'минут']);
-  parts.push([pad(r.seconds), 'секунд']);
-  return parts.map(([n, l]) => `
-    <div class="detail-unit">
-      <div class="detail-num" style="color:${color}">${n}</div>
-      <div class="detail-sub">${l}</div>
-    </div>
-  `).join('');
 }
 
 function closeDetail() {
@@ -345,7 +400,12 @@ function openModal(dl = null) {
     $('datetimeInput').value = localNow.toISOString().slice(0, 16);
   }
 
-  $('customDailyRow').classList.add('hidden');
+  $('customIntervalRow').classList.add('hidden');
+  document.querySelectorAll('.chip').forEach(c => {
+    const offset = c.dataset.offset ? parseInt(c.dataset.offset) : null;
+    const active = selectedReminders.some(r => r.type === 'before_minutes' && r.offset_minutes === offset);
+    c.classList.toggle('active', active);
+  });
   renderSelectedReminders();
   $('modalOverlay').classList.remove('hidden');
   setTimeout(() => $('titleInput').focus(), 80);
