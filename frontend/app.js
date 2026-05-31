@@ -307,7 +307,7 @@ function cardHTML(dl, i = 0) {
       ${desc}
       <div class="card-countdown">
         <div class="countdown-label">${r.is_past ? 'Прошёл' : 'Осталось'}</div>
-        <div class="countdown">${cdUnitsHTML(r, color, { compact: true })}</div>
+        <div class="countdown">${cdUnitsHTML(r, color)}</div>
       </div>
       <div class="card-footer">
         <div class="card-date">${formatDate(dl.deadline_at)}</div>
@@ -408,6 +408,22 @@ function focusGo(dir) {
 
 $('focusPrev').addEventListener('click', () => focusGo(-1));
 $('focusNext').addEventListener('click', () => focusGo(1));
+
+/* ─── Touch swipe for focus view ─────────────────────────────────────── */
+let swipeStartX = 0;
+let swipeStartY = 0;
+$('focusView').addEventListener('touchstart', e => {
+  swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+}, { passive: true });
+$('focusView').addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - swipeStartX;
+  const dy = e.changedTouches[0].clientY - swipeStartY;
+  // only horizontal swipes with enough distance
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    focusGo(dx < 0 ? 1 : -1);
+  }
+}, { passive: true });
 
 /* ─── View mode toggle ───────────────────────────────────────────────── */
 function setViewMode(mode) {

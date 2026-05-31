@@ -425,7 +425,7 @@ body::before {
    Focus view (one hero deadline)
    ══════════════════════════════════════════════════════════════════════ */
 .focus-view { display: flex; flex-direction: column; align-items: center; gap: 26px; min-height: 60vh; justify-content: center; }
-.focus-stage { width: 100%; max-width: 620px; perspective: 1400px; }
+.focus-stage { width: 100%; max-width: 620px; }
 
 .focus-card {
   position: relative; overflow: hidden;
@@ -441,12 +441,12 @@ body::before {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
   background: var(--card-color, var(--accent));
 }
-.focus-card.enter-right { animation: focusInRight var(--dur-slow) var(--ease-decelerate) both; }
-.focus-card.enter-left  { animation: focusInLeft  var(--dur-slow) var(--ease-decelerate) both; }
-.focus-card.enter       { animation: focusIn var(--dur-slow) var(--ease-spring) both; }
-@keyframes focusInRight { from { opacity: 0; transform: translateX(60px) rotateY(-8deg); } to { opacity: 1; transform: none; } }
-@keyframes focusInLeft  { from { opacity: 0; transform: translateX(-60px) rotateY(8deg); } to { opacity: 1; transform: none; } }
-@keyframes focusIn { from { opacity: 0; transform: scale(0.92) translateY(20px); } to { opacity: 1; transform: none; } }
+.focus-card.enter-right { animation: focusInRight var(--dur-moderate) var(--ease-decelerate) both; }
+.focus-card.enter-left  { animation: focusInLeft  var(--dur-moderate) var(--ease-decelerate) both; }
+.focus-card.enter       { animation: focusIn      var(--dur-moderate) var(--ease-decelerate) both; }
+@keyframes focusInRight { from { opacity: 0; transform: translateX(56px); } to { opacity: 1; transform: none; } }
+@keyframes focusInLeft  { from { opacity: 0; transform: translateX(-56px); } to { opacity: 1; transform: none; } }
+@keyframes focusIn      { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 
 .focus-badge {
   display: inline-block;
@@ -468,13 +468,15 @@ body::before {
 .focus-countdown {
   display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 28px;
 }
-.focus-countdown .cd-unit {
-  background: rgba(0,0,0,0.25); border-color: color-mix(in srgb, var(--card-color, var(--accent)) 28%, var(--border));
-  border-radius: var(--radius-sm); padding: 14px 16px; min-width: clamp(58px, 16vw, 84px);
-  animation: cdUp var(--dur-slow) var(--ease-spring) both;
-  animation-delay: calc(var(--i,0) * 60ms + 180ms);
+.focus-countdown {
+  animation: fadeUp var(--dur-slow) var(--ease-decelerate) both;
+  animation-delay: 120ms;
 }
-@keyframes cdUp { from { opacity: 0; transform: translateY(16px) scale(0.85); } to { opacity: 1; transform: none; } }
+.focus-countdown .cd-unit {
+  background: rgba(0,0,0,0.25);
+  border-color: color-mix(in srgb, var(--card-color, var(--accent)) 28%, var(--border));
+  border-radius: var(--radius-sm); padding: 14px 16px; min-width: clamp(58px, 16vw, 84px);
+}
 .focus-countdown .cd-num { font-size: clamp(1.8rem, 7vw, 2.8rem); }
 .focus-countdown .cd-sub { font-size: 0.66rem; margin-top: 6px; }
 
