@@ -11,13 +11,13 @@ let focusIndex        = 0;
 let tickTimer         = null;
 let byId              = {};
 
-/* draggable-canvas physics state */
-const canvas = {
+/* 3D orbit scene state */
+const orbit = {
   raf: null, running: false,
-  posX: 0, posY: 0, targetX: 0, targetY: 0, velX: 0, velY: 0,
-  bounds: { x: 0, y: 0 },
+  rotX: -22, rotY: 0,
+  velX: 0,   velY: 0,
   dragging: false, dragged: false,
-  lastX: 0, lastY: 0,
+  lastX: 0,  lastY: 0,
 };
 
 /* ─── Utility ────────────────────────────────────────────────────────── */
@@ -293,54 +293,29 @@ function renderGrid() {
   empty.classList.add('hidden');
   grid.innerHTML = active.map((dl, i) => cardHTML(dl, i)).join('');
 
-  // scatter cards across the canvas plane around the sculpture
   const positions = layoutPositions(active.length);
   grid.querySelectorAll('.card').forEach((card, i) => {
     const p = positions[i];
-    card.style.left = p.x + 'px';
-    card.style.top  = p.y + 'px';
+    card.style.transform = `rotateY(${p.angle}deg) translateZ(${p.radius}px) translateY(${p.height}px)`;
     card.addEventListener('click', () => {
-      if (canvas.dragged) return;          // ignore clicks that were drags
+      if (orbit.dragged) return;
       openDetail(Number(card.dataset.id));
     });
   });
 
-  canvas.bounds = computeBounds(positions);
-  startCanvas();
+  startOrbit();
 }
 
-/* ─── Canvas layout: scatter positions around centre ─────────────────── */
+/* ─── 3D spiral layout: phyllotaxis golden-angle distribution ────────── */
 function layoutPositions(n) {
-  const cellW = 360, cellH = 280;
-  const span = Math.ceil(Math.sqrt(n + 2)) + 2;
-  const cells = [];
-  for (let gy = -span; gy <= span; gy++)
-    for (let gx = -span; gx <= span; gx++)
-      cells.push({ gx, gy, d: Math.hypot(gx, gy) });
-  cells.sort((a, b) => a.d - b.d || a.gx - b.gx);
-  // cells[0] is (0,0) → reserved for the sculpture; cards take the rest
-  const out = [];
-  for (let i = 1; i <= n; i++) {
-    const c = cells[i];
-    // deterministic jitter from grid coords for an organic, non-rigid scatter
-    const jx = (Math.sin(c.gx * 12.9 + c.gy * 7.3) * 0.5) * 46;
-    const jy = (Math.cos(c.gx * 4.1 + c.gy * 9.7) * 0.5) * 40;
-    out.push({ x: c.gx * cellW + jx, y: c.gy * cellH + jy });
-  }
-  return out;
-}
-
-function computeBounds(positions) {
-  let mx = 0, my = 0;
-  positions.forEach(p => { mx = Math.max(mx, Math.abs(p.x)); my = Math.max(my, Math.abs(p.y)); });
-  const vp = $('canvasViewport');
-  const vw = vp ? vp.clientWidth  : 1000;
-  const vh = vp ? vp.clientHeight : 600;
-  // allow panning so the farthest card can reach centre, plus a margin
-  return {
-    x: Math.max(0, mx - vw / 2 + 220),
-    y: Math.max(0, my - vh / 2 + 180),
-  };
+  const goldenAngle = 137.508;
+  const radius      = 400;
+  const heightRange = Math.min(260 + n * 18, 460);
+  return Array.from({ length: n }, (_, i) => ({
+    angle:  i * goldenAngle,
+    height: n <= 1 ? 0 : ((i / (n - 1)) - 0.5) * heightRange,
+    radius,
+  }));
 }
 
 function cardHTML(dl, i = 0) {
@@ -478,97 +453,77 @@ $('focusView').addEventListener('touchend', e => {
   }
 }, { passive: true });
 
-/* ═══ Draggable canvas with momentum (theyearofgreta-style) ═══════════ */
-const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+/* ═══ 3D Orbit Scene ══════════════════════════════════════════════════ */
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-function canvasFrame() {
-  const c = canvas;
-  if (!c.dragging) {
-    // momentum: keep moving, decay velocity
-    c.targetX += c.velX;
-    c.targetY += c.velY;
-    c.velX *= 0.93;
-    c.velY *= 0.93;
-    if (Math.abs(c.velX) < 0.04) c.velX = 0;
-    if (Math.abs(c.velY) < 0.04) c.velY = 0;
+function orbitFrame() {
+  const o = orbit;
+  if (!o.dragging) {
+    o.rotY += o.velY; o.rotX += o.velX;
+    o.velY *= 0.91;   o.velX *= 0.91;
+    if (Math.abs(o.velY) < 0.02) o.velY = 0;
+    if (Math.abs(o.velX) < 0.02) o.velX = 0;
+    // gentle auto-spin when idle
+    if (Math.abs(o.velY) < 0.12) o.rotY += 0.10;
   }
-  // soft bounds — rubber-band back if thrown past the edge
-  c.targetX = clamp(c.targetX, -c.bounds.x, c.bounds.x);
-  c.targetY = clamp(c.targetY, -c.bounds.y, c.bounds.y);
-
-  // ease current toward target
-  c.posX += (c.targetX - c.posX) * 0.12;
-  c.posY += (c.targetY - c.posY) * 0.12;
-
-  // skew by residual motion → cards lean into the drag, like the reference
-  const dx = c.targetX - c.posX;
-  const dy = c.targetY - c.posY;
-  const skx = clamp(dx * 0.018, -2.4, 2.4);
-  const sky = clamp(dy * 0.018, -2.4, 2.4);
-
-  const plane = $('canvasPlane');
-  if (plane) {
-    plane.style.transform =
-      `translate3d(${c.posX.toFixed(2)}px, ${c.posY.toFixed(2)}px, 0) skewX(${skx.toFixed(2)}deg) skewY(${sky.toFixed(2)}deg)`;
-  }
-  c.raf = requestAnimationFrame(canvasFrame);
+  o.rotX = clamp(o.rotX, -55, 55);
+  const scene = $('canvasPlane');
+  if (scene) scene.style.transform =
+    `rotateX(${o.rotX.toFixed(2)}deg) rotateY(${o.rotY.toFixed(2)}deg)`;
+  o.raf = requestAnimationFrame(orbitFrame);
 }
 
-function startCanvas() {
-  if (canvas.running) return;
-  canvas.running = true;
-  canvas.raf = requestAnimationFrame(canvasFrame);
+function startOrbit() {
+  if (orbit.running) return;
+  orbit.running = true;
+  orbit.raf = requestAnimationFrame(orbitFrame);
 }
-function stopCanvas() {
-  canvas.running = false;
-  if (canvas.raf) cancelAnimationFrame(canvas.raf);
-  canvas.raf = null;
+function stopOrbit() {
+  orbit.running = false;
+  if (orbit.raf) cancelAnimationFrame(orbit.raf);
+  orbit.raf = null;
 }
 
-(function wireCanvas() {
+(function wireOrbit() {
   const vp = $('canvasViewport');
   if (!vp) return;
 
   vp.addEventListener('pointerdown', e => {
-    canvas.dragging = true;
-    canvas.dragged  = false;
-    canvas.velX = canvas.velY = 0;
-    canvas.lastX = e.clientX;
-    canvas.lastY = e.clientY;
+    orbit.dragging = true; orbit.dragged = false;
+    orbit.velX = orbit.velY = 0;
+    orbit.lastX = e.clientX; orbit.lastY = e.clientY;
     vp.classList.add('grabbing', 'touched');
     try { vp.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
   vp.addEventListener('pointermove', e => {
-    if (!canvas.dragging) return;
-    const dx = e.clientX - canvas.lastX;
-    const dy = e.clientY - canvas.lastY;
-    if (Math.abs(dx) + Math.abs(dy) > 4) canvas.dragged = true;
-    canvas.targetX += dx;
-    canvas.targetY += dy;
-    canvas.velX = dx;          // seed momentum from last frame's delta
-    canvas.velY = dy;
-    canvas.lastX = e.clientX;
-    canvas.lastY = e.clientY;
+    if (!orbit.dragging) return;
+    const dx = e.clientX - orbit.lastX;
+    const dy = e.clientY - orbit.lastY;
+    if (Math.abs(dx) + Math.abs(dy) > 4) orbit.dragged = true;
+    orbit.rotY += dx * 0.38;
+    orbit.rotX -= dy * 0.38;
+    orbit.velY  = dx * 0.38;
+    orbit.velX  = -dy * 0.38;
+    orbit.lastX = e.clientX;
+    orbit.lastY = e.clientY;
   });
 
   const endDrag = () => {
-    if (!canvas.dragging) return;
-    canvas.dragging = false;
+    if (!orbit.dragging) return;
+    orbit.dragging = false;
     vp.classList.remove('grabbing');
-    // a tiny drag shouldn't suppress the click; clear shortly after
-    if (canvas.dragged) setTimeout(() => { canvas.dragged = false; }, 0);
+    if (orbit.dragged) setTimeout(() => { orbit.dragged = false; }, 0);
   };
   vp.addEventListener('pointerup', endDrag);
   vp.addEventListener('pointercancel', endDrag);
-})();
 
-window.addEventListener('resize', () => {
-  if (viewMode === 'grid') {
-    const active = deadlines.filter(d => !d.archived);
-    canvas.bounds = computeBounds(layoutPositions(active.length));
-  }
-});
+  vp.addEventListener('wheel', e => {
+    e.preventDefault();
+    orbit.rotY += e.deltaY * 0.22;
+    orbit.velY = e.deltaY * 0.08;
+  }, { passive: false });
+})();
 
 /* ─── View mode toggle ───────────────────────────────────────────────── */
 function setViewMode(mode) {
@@ -583,7 +538,7 @@ function setViewMode(mode) {
   });
 
   if (mode === 'focus') {
-    stopCanvas();
+    stopOrbit();
     gridView.classList.add('hidden');
     focusView.classList.remove('hidden');
     renderFocus();
