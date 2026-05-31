@@ -298,6 +298,80 @@ body::before {
 @keyframes dotPulse { 0%,100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 50% { opacity: 0.6; } }
 
 /* ══════════════════════════════════════════════════════════════════════
+   Draggable canvas (theyearofgreta-style inertia gallery)
+   ══════════════════════════════════════════════════════════════════════ */
+.canvas-viewport {
+  position: relative;
+  height: clamp(460px, 72vh, 800px);
+  border-radius: 22px;
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background:
+    radial-gradient(70% 60% at 50% 45%, rgba(99,102,241,0.07), transparent 70%),
+    rgba(255,255,255,0.012);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.canvas-viewport.grabbing { cursor: grabbing; }
+
+.canvas-hint {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  z-index: 5; display: flex; align-items: center; gap: 7px;
+  padding: 6px 14px; border-radius: 100px;
+  background: rgba(0,0,0,0.35); backdrop-filter: blur(8px);
+  border: 1px solid var(--border-soft);
+  font-size: 0.74rem; font-weight: 500; color: var(--text-secondary);
+  pointer-events: none;
+  transition: opacity var(--dur-moderate) var(--ease-standard);
+}
+.canvas-viewport.grabbing .canvas-hint,
+.canvas-viewport.touched  .canvas-hint { opacity: 0; }
+
+.canvas-plane {
+  position: absolute; inset: 0;
+  transform: translate3d(0,0,0);
+  will-change: transform;
+}
+
+.sculpture {
+  position: absolute; left: 50%; top: 50%;
+  width: clamp(220px, 30vw, 340px); aspect-ratio: 240 / 340;
+  transform: translate(-50%, -50%);
+  z-index: 0; pointer-events: none;
+  filter: drop-shadow(0 30px 50px rgba(0,0,0,0.5));
+  animation: sculptFloat 7s var(--ease-standard) infinite;
+}
+@keyframes sculptFloat {
+  0%,100% { transform: translate(-50%, calc(-50% - 6px)); }
+  50%     { transform: translate(-50%, calc(-50% + 6px)); }
+}
+
+/* cards live on the plane, positioned absolutely around the centre */
+.canvas-plane .deadlines-grid {
+  display: block;
+  position: absolute; left: 50%; top: 50%;
+  width: 0; height: 0;
+  z-index: 1;
+}
+.canvas-plane .card {
+  position: absolute;
+  width: 300px;
+  margin: 0;
+  transform: translate(-50%, -50%) scale(var(--cs, 1));
+  animation: cardFade var(--dur-slow) var(--ease-decelerate) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+@keyframes cardFade { from { opacity: 0; } to { opacity: 1; } }
+.canvas-plane .card:hover { --cs: 1.05; z-index: 3; }
+.canvas-plane .card:active { --cs: 0.99; }
+.canvas-plane .loading-state {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    Grid + cards
    ══════════════════════════════════════════════════════════════════════ */
 .deadlines-grid {
@@ -398,12 +472,10 @@ body::before {
   color: var(--card-color, var(--accent));
   display: inline-block;
 }
-.cd-num.tick { animation: digitFlip var(--dur-moderate) var(--ease-spring); }
-@keyframes digitFlip {
-  0%   { transform: rotateX(0deg); }
-  45%  { transform: rotateX(-90deg); opacity: 0.3; }
-  55%  { transform: rotateX(90deg); opacity: 0.3; }
-  100% { transform: rotateX(0deg); opacity: 1; }
+.cd-num.tick { animation: digitTick var(--dur-normal) var(--ease-decelerate); }
+@keyframes digitTick {
+  0%   { transform: translateY(-3px); opacity: 0.4; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 .cd-sub {
   font-size: 0.62rem; color: var(--text-muted);

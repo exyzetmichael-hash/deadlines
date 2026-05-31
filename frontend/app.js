@@ -11,6 +11,15 @@ let focusIndex        = 0;
 let tickTimer         = null;
 let byId              = {};
 
+/* draggable-canvas physics state */
+const canvas = {
+  raf: null, running: false,
+  posX: 0, posY: 0, targetX: 0, targetY: 0, velX: 0, velY: 0,
+  bounds: { x: 0, y: 0 },
+  dragging: false, dragged: false,
+  lastX: 0, lastY: 0,
+};
+
 /* ─── Utility ────────────────────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2, '0');
@@ -284,10 +293,54 @@ function renderGrid() {
   empty.classList.add('hidden');
   grid.innerHTML = active.map((dl, i) => cardHTML(dl, i)).join('');
 
-  // click handlers (event delegation)
-  grid.querySelectorAll('.card').forEach(card => {
-    card.addEventListener('click', () => openDetail(Number(card.dataset.id)));
+  // scatter cards across the canvas plane around the sculpture
+  const positions = layoutPositions(active.length);
+  grid.querySelectorAll('.card').forEach((card, i) => {
+    const p = positions[i];
+    card.style.left = p.x + 'px';
+    card.style.top  = p.y + 'px';
+    card.addEventListener('click', () => {
+      if (canvas.dragged) return;          // ignore clicks that were drags
+      openDetail(Number(card.dataset.id));
+    });
   });
+
+  canvas.bounds = computeBounds(positions);
+  startCanvas();
+}
+
+/* ─── Canvas layout: scatter positions around centre ─────────────────── */
+function layoutPositions(n) {
+  const cellW = 360, cellH = 280;
+  const span = Math.ceil(Math.sqrt(n + 2)) + 2;
+  const cells = [];
+  for (let gy = -span; gy <= span; gy++)
+    for (let gx = -span; gx <= span; gx++)
+      cells.push({ gx, gy, d: Math.hypot(gx, gy) });
+  cells.sort((a, b) => a.d - b.d || a.gx - b.gx);
+  // cells[0] is (0,0) → reserved for the sculpture; cards take the rest
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    const c = cells[i];
+    // deterministic jitter from grid coords for an organic, non-rigid scatter
+    const jx = (Math.sin(c.gx * 12.9 + c.gy * 7.3) * 0.5) * 46;
+    const jy = (Math.cos(c.gx * 4.1 + c.gy * 9.7) * 0.5) * 40;
+    out.push({ x: c.gx * cellW + jx, y: c.gy * cellH + jy });
+  }
+  return out;
+}
+
+function computeBounds(positions) {
+  let mx = 0, my = 0;
+  positions.forEach(p => { mx = Math.max(mx, Math.abs(p.x)); my = Math.max(my, Math.abs(p.y)); });
+  const vp = $('canvasViewport');
+  const vw = vp ? vp.clientWidth  : 1000;
+  const vh = vp ? vp.clientHeight : 600;
+  // allow panning so the farthest card can reach centre, plus a margin
+  return {
+    x: Math.max(0, mx - vw / 2 + 220),
+    y: Math.max(0, my - vh / 2 + 180),
+  };
 }
 
 function cardHTML(dl, i = 0) {
@@ -425,6 +478,98 @@ $('focusView').addEventListener('touchend', e => {
   }
 }, { passive: true });
 
+/* ═══ Draggable canvas with momentum (theyearofgreta-style) ═══════════ */
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+function canvasFrame() {
+  const c = canvas;
+  if (!c.dragging) {
+    // momentum: keep moving, decay velocity
+    c.targetX += c.velX;
+    c.targetY += c.velY;
+    c.velX *= 0.93;
+    c.velY *= 0.93;
+    if (Math.abs(c.velX) < 0.04) c.velX = 0;
+    if (Math.abs(c.velY) < 0.04) c.velY = 0;
+  }
+  // soft bounds — rubber-band back if thrown past the edge
+  c.targetX = clamp(c.targetX, -c.bounds.x, c.bounds.x);
+  c.targetY = clamp(c.targetY, -c.bounds.y, c.bounds.y);
+
+  // ease current toward target
+  c.posX += (c.targetX - c.posX) * 0.12;
+  c.posY += (c.targetY - c.posY) * 0.12;
+
+  // skew by residual motion → cards lean into the drag, like the reference
+  const dx = c.targetX - c.posX;
+  const dy = c.targetY - c.posY;
+  const skx = clamp(dx * 0.018, -2.4, 2.4);
+  const sky = clamp(dy * 0.018, -2.4, 2.4);
+
+  const plane = $('canvasPlane');
+  if (plane) {
+    plane.style.transform =
+      `translate3d(${c.posX.toFixed(2)}px, ${c.posY.toFixed(2)}px, 0) skewX(${skx.toFixed(2)}deg) skewY(${sky.toFixed(2)}deg)`;
+  }
+  c.raf = requestAnimationFrame(canvasFrame);
+}
+
+function startCanvas() {
+  if (canvas.running) return;
+  canvas.running = true;
+  canvas.raf = requestAnimationFrame(canvasFrame);
+}
+function stopCanvas() {
+  canvas.running = false;
+  if (canvas.raf) cancelAnimationFrame(canvas.raf);
+  canvas.raf = null;
+}
+
+(function wireCanvas() {
+  const vp = $('canvasViewport');
+  if (!vp) return;
+
+  vp.addEventListener('pointerdown', e => {
+    canvas.dragging = true;
+    canvas.dragged  = false;
+    canvas.velX = canvas.velY = 0;
+    canvas.lastX = e.clientX;
+    canvas.lastY = e.clientY;
+    vp.classList.add('grabbing', 'touched');
+    try { vp.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+
+  vp.addEventListener('pointermove', e => {
+    if (!canvas.dragging) return;
+    const dx = e.clientX - canvas.lastX;
+    const dy = e.clientY - canvas.lastY;
+    if (Math.abs(dx) + Math.abs(dy) > 4) canvas.dragged = true;
+    canvas.targetX += dx;
+    canvas.targetY += dy;
+    canvas.velX = dx;          // seed momentum from last frame's delta
+    canvas.velY = dy;
+    canvas.lastX = e.clientX;
+    canvas.lastY = e.clientY;
+  });
+
+  const endDrag = () => {
+    if (!canvas.dragging) return;
+    canvas.dragging = false;
+    vp.classList.remove('grabbing');
+    // a tiny drag shouldn't suppress the click; clear shortly after
+    if (canvas.dragged) setTimeout(() => { canvas.dragged = false; }, 0);
+  };
+  vp.addEventListener('pointerup', endDrag);
+  vp.addEventListener('pointercancel', endDrag);
+})();
+
+window.addEventListener('resize', () => {
+  if (viewMode === 'grid') {
+    const active = deadlines.filter(d => !d.archived);
+    canvas.bounds = computeBounds(layoutPositions(active.length));
+  }
+});
+
 /* ─── View mode toggle ───────────────────────────────────────────────── */
 function setViewMode(mode) {
   viewMode = mode;
@@ -438,6 +583,7 @@ function setViewMode(mode) {
   });
 
   if (mode === 'focus') {
+    stopCanvas();
     gridView.classList.add('hidden');
     focusView.classList.remove('hidden');
     renderFocus();
