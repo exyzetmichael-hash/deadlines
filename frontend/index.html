@@ -12,6 +12,7 @@
 <body>
   <div class="aurora"></div>
   <div class="app">
+
     <header class="header">
       <div class="header-inner">
         <div class="logo">
@@ -21,106 +22,126 @@
 
         <div class="view-toggle" id="viewToggle" role="tablist" aria-label="Режим отображения">
           <button class="view-btn" data-mode="focus" role="tab" aria-selected="false">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/>
+            </svg>
             <span>Фокус</span>
           </button>
           <button class="view-btn active" data-mode="grid" role="tab" aria-selected="true">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+            </svg>
             <span>Сетка</span>
           </button>
         </div>
 
         <button class="btn-add" id="openModalBtn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
           <span class="btn-add-text">Новый дедлайн</span>
         </button>
       </div>
     </header>
 
     <main class="main">
-      <!-- FOCUS VIEW: один дедлайн на экран -->
+
+      <!-- ── FOCUS VIEW ─────────────────────────────────── -->
       <section class="focus-view hidden" id="focusView">
         <div class="focus-stage" id="focusStage"></div>
         <div class="focus-nav hidden" id="focusNav">
-          <button class="focus-arrow" id="focusPrev" aria-label="Предыдущий дедлайн">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <button class="focus-arrow" id="focusPrev" aria-label="Предыдущий">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
           </button>
           <div class="focus-dots" id="focusDots"></div>
-          <button class="focus-arrow" id="focusNext" aria-label="Следующий дедлайн">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <button class="focus-arrow" id="focusNext" aria-label="Следующий">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
           </button>
         </div>
       </section>
 
-      <!-- GRID VIEW: все дедлайны -->
+      <!-- ── GRID VIEW ───────────────────────────────────── -->
       <section class="grid-view" id="gridView">
         <div class="summary-bar" id="summaryBar"></div>
+
         <div class="deadlines-grid" id="deadlinesGrid">
           <div class="loading-state">
             <div class="spinner"></div>
             <p>Загрузка…</p>
           </div>
         </div>
+
         <div class="empty-state hidden" id="emptyState">
           <div class="empty-icon">◎</div>
           <h2>Нет дедлайнов</h2>
           <p>Добавь первый дедлайн, чтобы начать отслеживать время</p>
           <button class="btn-add" id="emptyAddBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
             Добавить дедлайн
           </button>
         </div>
 
         <section class="archive hidden" id="archiveSection">
           <button class="archive-toggle" id="archiveToggle" aria-expanded="false">
-            <svg class="archive-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <svg class="archive-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
             <span>Архив</span>
             <span class="archive-count" id="archiveCount">0</span>
           </button>
           <div class="deadlines-grid archive-grid hidden" id="archiveGrid"></div>
         </section>
       </section>
+
     </main>
   </div>
 
-  <!-- MODAL: CREATE / EDIT -->
+  <!-- ── MODAL: CREATE / EDIT ──────────────────────────────── -->
   <div class="modal-overlay hidden" id="modalOverlay">
     <div class="modal" id="modal">
       <div class="modal-header">
         <h2 class="modal-title" id="modalTitle">Новый дедлайн</h2>
-        <button class="modal-close" id="closeModalBtn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button class="modal-close" id="closeModalBtn" aria-label="Закрыть">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
         </button>
       </div>
       <form id="deadlineForm" autocomplete="off">
         <input type="hidden" id="editId" />
-        <div class="form-group">
+        <div class="form-group" style="--i:0">
           <label class="form-label" for="titleInput">Название</label>
-          <input class="form-input" id="titleInput" type="text" placeholder="Сдать проект, Встреча с командой…" required />
+          <input class="form-input" id="titleInput" type="text" placeholder="Сдать проект, встреча с командой…" required />
         </div>
-        <div class="form-group">
+        <div class="form-group" style="--i:1">
           <label class="form-label" for="descInput">Описание <span class="optional">необязательно</span></label>
           <textarea class="form-input form-textarea" id="descInput" placeholder="Детали, ссылки, заметки…" rows="2"></textarea>
         </div>
-        <div class="form-group">
+        <div class="form-group" style="--i:2">
           <label class="form-label" for="datetimeInput">Дата и время</label>
           <input class="form-input" id="datetimeInput" type="datetime-local" required />
         </div>
-        <div class="form-group">
+        <div class="form-group" style="--i:3">
           <label class="form-label">Цвет</label>
           <div class="color-picker" id="colorPicker">
-            <button type="button" class="color-swatch active" data-color="#6366f1" style="background:#6366f1;"></button>
-            <button type="button" class="color-swatch" data-color="#ec4899" style="background:#ec4899;"></button>
-            <button type="button" class="color-swatch" data-color="#f59e0b" style="background:#f59e0b;"></button>
-            <button type="button" class="color-swatch" data-color="#10b981" style="background:#10b981;"></button>
-            <button type="button" class="color-swatch" data-color="#3b82f6" style="background:#3b82f6;"></button>
-            <button type="button" class="color-swatch" data-color="#ef4444" style="background:#ef4444;"></button>
-            <button type="button" class="color-swatch" data-color="#8b5cf6" style="background:#8b5cf6;"></button>
-            <button type="button" class="color-swatch" data-color="#14b8a6" style="background:#14b8a6;"></button>
+            <button type="button" class="color-swatch active" data-color="#6366f1" style="background:#6366f1"></button>
+            <button type="button" class="color-swatch" data-color="#ec4899" style="background:#ec4899"></button>
+            <button type="button" class="color-swatch" data-color="#f59e0b" style="background:#f59e0b"></button>
+            <button type="button" class="color-swatch" data-color="#10b981" style="background:#10b981"></button>
+            <button type="button" class="color-swatch" data-color="#3b82f6" style="background:#3b82f6"></button>
+            <button type="button" class="color-swatch" data-color="#ef4444" style="background:#ef4444"></button>
+            <button type="button" class="color-swatch" data-color="#8b5cf6" style="background:#8b5cf6"></button>
+            <button type="button" class="color-swatch" data-color="#14b8a6" style="background:#14b8a6"></button>
           </div>
         </div>
-
-        <div class="form-group">
+        <div class="form-group" style="--i:4">
           <label class="form-label">Напоминания <span class="optional">за сколько до события</span></label>
           <div class="reminder-chips" id="reminderChips">
             <button type="button" class="chip" data-type="before_minutes" data-offset="30">За 30 мин</button>
@@ -134,9 +155,10 @@
           </div>
           <button type="button" class="btn-ghost btn-custom-reminder" id="toggleCustomInterval">⚙️ Свой интервал</button>
           <div class="selected-reminders" id="selectedReminders"></div>
-          <p class="optional" style="margin-top:10px;display:block;font-size:0.78rem;">☀️ Ежедневная сводка со всеми дедлайнами приходит в боте автоматически каждое утро.</p>
+          <p class="optional" style="margin-top:10px;display:block;font-size:0.77rem">
+            ☀️ Ежедневная сводка приходит в боте автоматически каждое утро.
+          </p>
         </div>
-
         <div class="form-actions">
           <button type="button" class="btn-ghost" id="cancelFormBtn">Отмена</button>
           <button type="submit" class="btn-primary" id="submitBtn">Создать</button>
@@ -145,19 +167,21 @@
     </div>
   </div>
 
-  <!-- MODAL: DETAIL / DELETE CONFIRM -->
+  <!-- ── MODAL: DETAIL ─────────────────────────────────────── -->
   <div class="modal-overlay hidden" id="detailOverlay">
     <div class="modal modal-detail" id="detailModal">
       <div class="modal-header">
         <h2 class="modal-title" id="detailTitle"></h2>
-        <button class="modal-close" id="closeDetailBtn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button class="modal-close" id="closeDetailBtn" aria-label="Закрыть">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
         </button>
       </div>
       <div id="detailBody"></div>
       <div class="form-actions">
         <button class="btn-danger" id="deleteBtn">Удалить</button>
-        <button class="btn-ghost" id="archiveBtn">Архивировать</button>
+        <button class="btn-ghost"  id="archiveBtn">Архивировать</button>
         <button class="btn-primary" id="editBtn">Редактировать</button>
       </div>
     </div>
