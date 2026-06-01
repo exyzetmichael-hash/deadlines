@@ -11,13 +11,25 @@ let focusIndex        = 0;
 let tickTimer         = null;
 let byId              = {};
 
-/* 3D orbit scene state */
-const orbit = {
+/* ─── 3D Helix constants ──────────────────────────────────────────────── */
+const HELIX_R         = 170;   // cylinder radius, px
+const HELIX_ANGLE     = 72;    // degrees per card (5 cards/turn)
+const HELIX_PITCH     = 82;    // vertical px between cards
+const DRAG_PX         = 110;   // px of drag = 1 card step
+const AUTO_SPEED      = 0.0018; // cards/frame when idle
+
+/* 3D helix scene state */
+const helix = {
   raf: null, running: false,
-  rotX: -22, rotY: 0,
-  velX: 0,   velY: 0,
+  progress: 0,      // smooth current position (card units, float)
+  snap: 0,          // target integer snap position
+  velocity: 0,      // momentum in card-units/frame
+  snapping: false,  // currently snapping to card
   dragging: false, dragged: false,
-  lastX: 0,  lastY: 0,
+  dragStartX: 0, dragStartProgress: 0,
+  lastX: 0,
+  idleFrames: 0,    // frames since last user interaction
+  cardCount: 0,
 };
 
 /* ─── Utility ────────────────────────────────────────────────────────── */
@@ -288,34 +300,29 @@ function renderGrid() {
   if (active.length === 0) {
     grid.innerHTML = '';
     empty.classList.remove('hidden');
+    $('helixNav').classList.add('hidden');
     return;
   }
   empty.classList.add('hidden');
   grid.innerHTML = active.map((dl, i) => cardHTML(dl, i)).join('');
 
-  const positions = layoutPositions(active.length);
+  /* Position each card along the helix cylinder */
   grid.querySelectorAll('.card').forEach((card, i) => {
-    const p = positions[i];
-    card.style.transform = `rotateY(${p.angle}deg) translateZ(${p.radius}px) translateY(${p.height}px)`;
+    const angleDeg = i * HELIX_ANGLE;
+    const y        = i * HELIX_PITCH;
+    card.style.transform = `translateY(${y}px) rotateY(${angleDeg}deg) translateZ(${HELIX_R}px)`;
     card.addEventListener('click', () => {
-      if (orbit.dragged) return;
+      if (helix.dragged) return;
       openDetail(Number(card.dataset.id));
     });
   });
 
-  startOrbit();
-}
+  helix.cardCount = active.length;
+  helix.snap      = Math.max(0, Math.min(helix.snap, active.length - 1));
 
-/* ─── 3D spiral layout: phyllotaxis golden-angle distribution ────────── */
-function layoutPositions(n) {
-  const goldenAngle = 137.508;
-  const radius      = 400;
-  const heightRange = Math.min(260 + n * 18, 460);
-  return Array.from({ length: n }, (_, i) => ({
-    angle:  i * goldenAngle,
-    height: n <= 1 ? 0 : ((i / (n - 1)) - 0.5) * heightRange,
-    radius,
-  }));
+  $('helixNav').classList.toggle('hidden', active.length <= 1);
+  updateHelixNav();
+  startHelix();
 }
 
 function cardHTML(dl, i = 0) {
@@ -453,76 +460,137 @@ $('focusView').addEventListener('touchend', e => {
   }
 }, { passive: true });
 
-/* ═══ 3D Orbit Scene ══════════════════════════════════════════════════ */
+/* ═══ 3D Helix Scene ══════════════════════════════════════════════════ */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-function orbitFrame() {
-  const o = orbit;
-  if (!o.dragging) {
-    o.rotY += o.velY; o.rotX += o.velX;
-    o.velY *= 0.91;   o.velX *= 0.91;
-    if (Math.abs(o.velY) < 0.02) o.velY = 0;
-    if (Math.abs(o.velX) < 0.02) o.velX = 0;
-    // gentle auto-spin when idle
-    if (Math.abs(o.velY) < 0.12) o.rotY += 0.10;
+function helixTrackTransform(p) {
+  return `rotateY(${(-p * HELIX_ANGLE).toFixed(3)}deg) translateY(${(-p * HELIX_PITCH).toFixed(2)}px)`;
+}
+
+function helixGo(dir) {
+  helix.snap       = clamp(Math.round(helix.progress) + dir, 0, helix.cardCount - 1);
+  helix.snapping   = true;
+  helix.velocity   = 0;
+  helix.idleFrames = 0;
+  updateHelixNav();
+}
+
+function updateHelixNav() {
+  const curr    = Math.round(helix.progress);
+  const navEl   = $('helixNav');
+  const dotsEl  = $('helixDots');
+  if (!navEl || !dotsEl) return;
+
+  dotsEl.innerHTML = Array.from({ length: helix.cardCount }, (_, i) =>
+    `<div class="helix-dot${i === curr ? ' active' : ''}" data-i="${i}"></div>`
+  ).join('');
+  dotsEl.querySelectorAll('.helix-dot').forEach(d => {
+    d.addEventListener('click', () => {
+      helix.snap = Number(d.dataset.i);
+      helix.snapping = true;
+      helix.velocity = 0;
+      helix.idleFrames = 0;
+      updateHelixNav();
+    });
+  });
+}
+
+function helixFrame() {
+  const h = helix;
+  const plane = $('canvasPlane');
+  if (!plane) { h.raf = requestAnimationFrame(helixFrame); return; }
+
+  if (!h.dragging) {
+    if (h.snapping) {
+      /* Ease toward snap target */
+      h.progress += (h.snap - h.progress) * 0.09;
+      if (Math.abs(h.progress - h.snap) < 0.005) {
+        h.progress = h.snap;
+        h.snapping = false;
+      }
+    } else {
+      /* Momentum decay */
+      h.progress += h.velocity;
+      h.velocity *= 0.87;
+      if (Math.abs(h.velocity) < 0.003) h.velocity = 0;
+
+      /* After a pause, auto-advance slowly */
+      h.idleFrames++;
+      if (h.idleFrames > 140 && Math.abs(h.velocity) < 0.003) {
+        h.progress += AUTO_SPEED;
+        if (h.progress >= h.cardCount) h.progress = 0;
+      }
+    }
+    h.progress = clamp(h.progress, -0.05, h.cardCount - 0.95 + (h.cardCount === 0 ? 0 : 0));
   }
-  o.rotX = clamp(o.rotX, -55, 55);
-  const scene = $('canvasPlane');
-  if (scene) scene.style.transform =
-    `rotateX(${o.rotX.toFixed(2)}deg) rotateY(${o.rotY.toFixed(2)}deg)`;
-  o.raf = requestAnimationFrame(orbitFrame);
+
+  plane.style.transform = helixTrackTransform(h.progress);
+  h.raf = requestAnimationFrame(helixFrame);
 }
 
-function startOrbit() {
-  if (orbit.running) return;
-  orbit.running = true;
-  orbit.raf = requestAnimationFrame(orbitFrame);
+function startHelix() {
+  if (helix.running) return;
+  helix.running = true;
+  helix.raf = requestAnimationFrame(helixFrame);
 }
-function stopOrbit() {
-  orbit.running = false;
-  if (orbit.raf) cancelAnimationFrame(orbit.raf);
-  orbit.raf = null;
+function stopHelix() {
+  helix.running = false;
+  if (helix.raf) cancelAnimationFrame(helix.raf);
+  helix.raf = null;
 }
 
-(function wireOrbit() {
+(function wireHelix() {
   const vp = $('canvasViewport');
   if (!vp) return;
 
   vp.addEventListener('pointerdown', e => {
-    orbit.dragging = true; orbit.dragged = false;
-    orbit.velX = orbit.velY = 0;
-    orbit.lastX = e.clientX; orbit.lastY = e.clientY;
+    helix.dragging       = true;
+    helix.dragged        = false;
+    helix.dragStartX     = e.clientX;
+    helix.dragStartProgress = helix.progress;
+    helix.lastX          = e.clientX;
+    helix.velocity       = 0;
+    helix.snapping       = false;
+    helix.idleFrames     = 0;
     vp.classList.add('grabbing', 'touched');
     try { vp.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
   vp.addEventListener('pointermove', e => {
-    if (!orbit.dragging) return;
-    const dx = e.clientX - orbit.lastX;
-    const dy = e.clientY - orbit.lastY;
-    if (Math.abs(dx) + Math.abs(dy) > 4) orbit.dragged = true;
-    orbit.rotY += dx * 0.38;
-    orbit.rotX -= dy * 0.38;
-    orbit.velY  = dx * 0.38;
-    orbit.velX  = -dy * 0.38;
-    orbit.lastX = e.clientX;
-    orbit.lastY = e.clientY;
+    if (!helix.dragging) return;
+    const dx = e.clientX - helix.lastX;
+    if (Math.abs(e.clientX - helix.dragStartX) > 5) helix.dragged = true;
+    helix.velocity  = -dx / DRAG_PX;
+    helix.progress  = clamp(
+      helix.dragStartProgress - (e.clientX - helix.dragStartX) / DRAG_PX,
+      0, helix.cardCount - 1
+    );
+    helix.lastX = e.clientX;
   });
 
   const endDrag = () => {
-    if (!orbit.dragging) return;
-    orbit.dragging = false;
+    if (!helix.dragging) return;
+    helix.dragging = false;
     vp.classList.remove('grabbing');
-    if (orbit.dragged) setTimeout(() => { orbit.dragged = false; }, 0);
+    /* Snap to nearest card, keeping momentum */
+    const nearest = Math.round(helix.progress);
+    helix.snap    = clamp(nearest, 0, helix.cardCount - 1);
+    helix.snapping = true;
+    if (helix.dragged) setTimeout(() => { helix.dragged = false; }, 0);
+    updateHelixNav();
   };
   vp.addEventListener('pointerup', endDrag);
   vp.addEventListener('pointercancel', endDrag);
 
   vp.addEventListener('wheel', e => {
     e.preventDefault();
-    orbit.rotY += e.deltaY * 0.22;
-    orbit.velY = e.deltaY * 0.08;
+    helix.idleFrames = 0;
+    helix.snapping   = false;
+    helix.velocity   = e.deltaY * 0.006;
   }, { passive: false });
+
+  $('helixPrev').addEventListener('click', () => helixGo(-1));
+  $('helixNext').addEventListener('click', () => helixGo(1));
 })();
 
 /* ─── View mode toggle ───────────────────────────────────────────────── */
@@ -538,7 +606,7 @@ function setViewMode(mode) {
   });
 
   if (mode === 'focus') {
-    stopOrbit();
+    stopHelix();
     gridView.classList.add('hidden');
     focusView.classList.remove('hidden');
     renderFocus();
